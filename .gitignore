@@ -1,0 +1,10 @@
+data/**/*.csv
+data/**/*.json
+data/**/*.parquet
+data/**/*.xlsx
+data/**/*.log
+
+data/provincias/checkpoints/
+data/provincias/estados/
+data/provincias/errores/
+data/provincias/runs/
