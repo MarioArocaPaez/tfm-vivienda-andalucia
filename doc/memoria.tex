@@ -153,10 +153,6 @@ La investigación se basará principalmente en datos cuantitativos. La informaci
 
 La estrategia elegida consiste en desarrollar un proceso completo de ciencia de datos, desde la obtención y preparación de la información hasta la evaluación e interpretación de los modelos. Este enfoque permite estudiar el problema desde varias perspectivas: calidad de los datos, comportamiento de las variables, capacidad predictiva de los modelos e interpretación de los resultados.
 
-El proceso de trabajo se dividirá en varias fases. En primer lugar, se realizará la obtención y preparación del conjunto de datos. A continuación, se llevará a cabo un análisis exploratorio para estudiar la distribución de las variables, detectar valores ausentes, valores atípicos y posibles inconsistencias.
-
-Posteriormente, se aplicarán las transformaciones necesarias para preparar los datos antes del entrenamiento de los modelos. Una vez completada la preparación inicial de los datos, estos se dividirán en conjuntos de entrenamiento, validación y prueba. El conjunto de prueba se mantendrá separado durante el desarrollo y se utilizará únicamente para la evaluación final. Las transformaciones que dependan de los datos y el ajuste de hiperparámetros se realizarán sin utilizar información procedente de este conjunto.
-
 Se definirá un modelo de regresión lineal que actúe como referencia inicial de rendimiento. A partir de la revisión del estado del arte, se ha decidido centrar la comparación en Random Forest y en los algoritmos de Gradient Boosting XGBoost \cite{chen2016xgboost}, LightGBM \cite{ke2017lightgbm} y CatBoost \cite{prokhorenkova2018catboost}. Además, se valorará la utilización de una red neuronal tipo MLP como modelo complementario cuando las características y el volumen del conjunto de datos lo permitan.
 
 Los modelos se evaluarán principalmente mediante RMSE (Root Mean Squared Error), MAE (Mean Absolute Error) y el coeficiente de determinación $R^2$. Estas métricas permitirán analizar el rendimiento desde perspectivas complementarias y se aplicarán bajo un mismo procedimiento de evaluación para facilitar la comparación entre los modelos. Cuando sea necesario, se realizará además un ajuste de hiperparámetros mediante Optuna \cite{akiba2019optuna}, utilizando únicamente los datos de entrenamiento y validación durante este proceso. Finalmente, se aplicarán técnicas de interpretabilidad, principalmente SHAP \cite{lundberg2017shap}, para analizar qué variables presentan una mayor influencia en las predicciones obtenidas.
@@ -322,20 +318,6 @@ La información contenida en los propios anuncios también puede aportar caracte
 
 Estos trabajos muestran que la calidad de un modelo de predicción no depende únicamente del algoritmo utilizado, sino también de la información disponible y de la capacidad para representar adecuadamente las características de la vivienda y de su entorno. Por este motivo, en el presente TFM se plantea utilizar información procedente de anuncios inmobiliarios y estudiar su posible enriquecimiento mediante fuentes oficiales que aporten variables adicionales relacionadas con la localización y el contexto territorial.
 
-\subsection{Obtención y generación de los datos del TFM}
-
-La fuente principal de información del presente trabajo estará formada por anuncios de viviendas publicados en Fotocasa. A diferencia de fuentes estadísticas agregadas, los anuncios permiten trabajar a nivel de inmueble y disponer de información como el precio de oferta, la superficie, el número de habitaciones, la localización y otras características de la vivienda que puedan encontrarse disponibles en cada anuncio.
-
-La obtención de esta información se realizará mediante un scraper desarrollado y adaptado para este proyecto a partir del repositorio de Rocío Benítez García \cite{benitez_fotocasa_scraper}. El código original estaba orientado a la extracción de anuncios de Fotocasa para Madrid y se ha modificado progresivamente para adaptarlo al ámbito geográfico de Andalucía y a las necesidades específicas del TFM. Entre las modificaciones realizadas se encuentran la ejecución por provincias, la adaptación de las búsquedas territoriales, la deduplicación de anuncios y la incorporación de mecanismos de control y reanudación del proceso de extracción. El objetivo es recopilar de forma estructurada la información disponible en los anuncios y construir posteriormente el conjunto de datos utilizado para el análisis y el entrenamiento de los modelos.
-
-Durante este proceso se aplicarán mecanismos de control de calidad para evitar, en la medida de lo posible, registros duplicados, anuncios incompletos o inconsistencias derivadas del proceso de extracción. También se analizará la cobertura obtenida en las distintas provincias y municipios, ya que la distribución de anuncios disponibles puede ser desigual y afectar a la representatividad territorial del conjunto de datos.
-
-Como fuente complementaria se utilizará información oficial publicada por el Ministerio de Vivienda y Agenda Urbana (MIVAU), en particular el conjunto de datos de transacciones inmobiliarias de vivienda \cite{mivau_transacciones}. Esta fuente proporciona información agregada sobre la actividad de compraventa y, por tanto, tiene una naturaleza diferente de los microdatos obtenidos de los anuncios. Su función dentro del trabajo será principalmente contextual y, cuando el nivel territorial y temporal de agregación lo permita, podrá estudiarse su utilización para generar variables adicionales relacionadas con el mercado inmobiliario de cada zona.
-
-Esta distinción resulta importante porque el objetivo del TFM es predecir el precio de oferta de viviendas individuales. Por ello, la variable objetivo procederá de los anuncios inmobiliarios, mientras que los datos agregados de fuentes oficiales se utilizarán como información complementaria y no como sustitutos del precio de cada inmueble.
-
-La obtención y tratamiento de los datos se realizará teniendo en cuenta las condiciones de uso de las fuentes y limitando la recopilación a la información necesaria para los objetivos académicos del trabajo. No se almacenarán nombres, teléfonos, correos electrónicos ni otros datos personales asociados a los anunciantes. La información obtenida se utilizará exclusivamente para el análisis desarrollado en el TFM y no se plantea la redistribución del conjunto de datos bruto obtenido mediante el proceso de extracción.
-
 \section{Métodos tradicionales de valoración y predicción}
 
 Antes de la incorporación generalizada de técnicas de aprendizaje automático, la valoración inmobiliaria se ha abordado principalmente mediante métodos estadísticos. Entre los enfoques más utilizados se encuentran los modelos de precios hedónicos, que parten de la idea de que el precio de un bien puede explicarse a partir del conjunto de características que lo componen.
@@ -412,7 +394,7 @@ Las redes neuronales constituyen otra familia de modelos capaces de representar 
 
 Uno de los modelos más habituales para trabajar con datos tabulares es el perceptrón multicapa o MLP. Este tipo de red está compuesto por una capa de entrada, una o varias capas ocultas y una capa de salida. Durante el entrenamiento, los pesos de las conexiones se ajustan para reducir el error cometido por el modelo \cite{goodfellow2016deep}.
 
-La principal ventaja de las redes neuronales es su capacidad para aproximar relaciones complejas entre las variables. Sin embargo, su rendimiento depende en gran medida de aspectos como la arquitectura utilizada, el número de capas y neuronas, las funciones de activación, la regularización y el proceso de entrenamiento. Además, suelen requerir un preprocesamiento más cuidadoso de los datos y pueden ser más sensibles a la escala de las variables que los modelos basados en árboles.
+La principal ventaja de las redes neuronales es su capacidad para aproximar relaciones complejas entre las variables. Sin embargo, su rendimiento depende en gran medida de aspectos como la arquitectura utilizada, el número de capas y neuronas, las funciones de activación, la regularización y el proceso de entrenamiento. Además, suelen requerir un preprocesamiento más cuidadoso que los modelos basados en árboles. Es habitual que las variables numéricas necesiten ser escaladas y que los valores ausentes deban tratarse previamente mediante eliminación o imputación. Del mismo modo, la presencia de valores atípicos puede afectar al proceso de entrenamiento, por lo que resulta conveniente analizarlos y decidir si deben mantenerse, transformarse o tratarse antes de ajustar la red. Los modelos basados en árboles suelen ser, en general, menos sensibles a la escala de las variables y más robustos frente a algunas de estas situaciones.
 
 En el ámbito de la predicción inmobiliaria, las redes neuronales han sido utilizadas como alternativa a los modelos estadísticos y a los métodos basados en árboles. La revisión de Geerts et al. \cite{houseprice_survey2023} recoge diferentes trabajos en los que se utilizan redes neuronales para estimar precios de vivienda, lo que permite considerar este enfoque como una alternativa adicional dentro de la comparación de modelos.
 
@@ -420,17 +402,23 @@ En este trabajo se valorará la utilización de una red neuronal tipo MLP como m
 
 \section{Preparación de los datos e ingeniería de características}
 
-La preparación de los datos constituye una fase fundamental antes del entrenamiento de los modelos predictivos. La calidad del conjunto de datos, el tratamiento de los valores ausentes y la transformación de las variables pueden influir de forma importante en el rendimiento final de los modelos.
+La preparación de los datos constituye una fase fundamental antes del entrenamiento de los modelos predictivos. La calidad del conjunto de datos, el tratamiento de los valores ausentes y atípicos, la codificación de las variables y la selección de características pueden influir de forma importante en el rendimiento final de los modelos.
 
 En los problemas de predicción inmobiliaria es habitual trabajar con variables de distinta naturaleza. Pueden encontrarse variables numéricas, como la superficie o el número de habitaciones; variables categóricas, como el tipo de vivienda o el municipio; y variables relacionadas con la localización y el entorno. La revisión de Geerts et al. \cite{houseprice_survey2023} muestra precisamente la variedad de tipos de datos utilizados en este tipo de estudios.
 
-Entre las tareas habituales de preprocesamiento se encuentran la detección de valores ausentes, la identificación de valores atípicos, la eliminación de registros duplicados y la revisión de posibles inconsistencias. Estas operaciones permiten reducir errores en los datos y evitar que determinados registros puedan distorsionar el proceso de aprendizaje.
+Uno de los primeros aspectos que debe analizarse es la presencia de valores ausentes. Dependiendo de la cantidad de información perdida y de las características de cada variable, estos registros pueden eliminarse o completarse mediante técnicas de imputación. Entre las alternativas más sencillas se encuentran la imputación mediante la media o la mediana en variables numéricas y mediante la categoría más frecuente en variables categóricas. También existen métodos más avanzados, como KNN Imputer, que utiliza observaciones similares para estimar los valores ausentes, o técnicas de imputación múltiple como MICE \cite{vanbuuren2011mice}, que permiten estimar los valores a partir de las relaciones existentes entre distintas variables.
 
-También puede ser necesario transformar algunas variables antes de utilizarlas en los modelos. Las variables categóricas pueden requerir técnicas de codificación, mientras que determinadas variables numéricas pueden beneficiarse de procesos de escalado o normalización, especialmente en modelos sensibles a la escala como las redes neuronales. En cambio, los modelos basados en árboles suelen ser menos sensibles a este tipo de transformaciones.
+La detección de valores atípicos constituye otro aspecto relevante, especialmente en el mercado inmobiliario, donde pueden existir viviendas con precios, superficies u otras características muy alejadas de la mayoría de las observaciones. Estos valores pueden identificarse mediante técnicas estadísticas como el rango intercuartílico (IQR), puntuaciones estandarizadas o \textit{z-scores}, así como mediante el análisis gráfico de las distribuciones. Sin embargo, un valor extremo no implica necesariamente un dato incorrecto, por lo que su eliminación o transformación debe justificarse teniendo en cuenta el contexto de la variable y la posibilidad de que represente una vivienda real con características poco frecuentes.
 
-La ingeniería de características permite además crear nuevas variables a partir de la información disponible. En el contexto inmobiliario, pueden resultar útiles variables derivadas como indicadores relacionados con la antigüedad de la vivienda, agrupaciones territoriales, características obtenidas a partir de otras variables del inmueble o medidas relacionadas con la proximidad a determinados servicios. La utilidad de estas variables deberá evaluarse evitando incorporar información derivada directa o indirectamente de la variable objetivo, ya que esto podría producir fugas de información y generar estimaciones artificialmente optimistas del rendimiento de los modelos.
+Las variables categóricas también requieren un tratamiento adecuado antes de utilizar determinados algoritmos. Una de las técnicas más habituales es One-Hot Encoding, que transforma cada categoría en una variable binaria independiente y evita asignar un orden artificial a categorías que no lo presentan. No obstante, cuando una variable contiene un número muy elevado de categorías, este procedimiento puede aumentar considerablemente la dimensionalidad del conjunto de datos. En estos casos pueden considerarse otras estrategias de codificación o modelos capaces de tratar variables categóricas de forma nativa, como CatBoost.
 
-La selección definitiva de las técnicas de preprocesamiento e ingeniería de características dependerá de la estructura y calidad del conjunto de datos obtenido. En este trabajo se analizarán estas decisiones antes del entrenamiento de los modelos, procurando aplicar el mismo criterio de preparación cuando sea necesario para garantizar una comparación adecuada entre ellos.
+En las variables numéricas puede ser necesario aplicar procesos de escalado o normalización para situarlas en rangos comparables. Este tratamiento resulta especialmente relevante para modelos sensibles a la magnitud de las variables, como las redes neuronales o los métodos basados en distancias. En cambio, los algoritmos basados en árboles suelen verse menos afectados por diferencias de escala entre las variables.
+
+La selección de variables permite reducir características redundantes o poco informativas antes del entrenamiento. Una primera aproximación puede realizarse mediante el análisis de correlaciones entre variables numéricas, identificando aquellas que presentan relaciones muy elevadas entre sí y que podrían aportar información redundante. También pueden utilizarse medidas de importancia obtenidas a partir de determinados modelos o procedimientos de selección de características. En cualquier caso, la selección deberá realizarse utilizando únicamente información disponible durante el entrenamiento para evitar fugas de información.
+
+La ingeniería de características permite además crear nuevas variables a partir de la información disponible. En el contexto inmobiliario, pueden resultar útiles variables derivadas relacionadas con la antigüedad de la vivienda, agrupaciones territoriales, características obtenidas a partir de otras variables del inmueble o medidas relacionadas con la proximidad a determinados servicios. La utilidad de estas variables deberá evaluarse evitando incorporar información derivada directa o indirectamente de la variable objetivo, ya que esto podría producir fugas de información y generar estimaciones artificialmente optimistas del rendimiento de los modelos.
+
+La selección definitiva de las técnicas de preprocesamiento e ingeniería de características dependerá de la estructura y calidad del conjunto de datos obtenido y del modelo que se vaya a entrenar. Por este motivo, se analizarán las distintas alternativas durante la fase de preparación de los datos y se documentarán las decisiones adoptadas para garantizar que la comparación posterior entre modelos se realice bajo condiciones adecuadas.
 
 \section{Evaluación de los modelos predictivos}
 
@@ -446,17 +434,17 @@ La utilización conjunta de estas métricas permite obtener una visión más com
 
 En el presente trabajo se utilizarán principalmente MAE, RMSE y $R^2$ para comparar los distintos modelos entrenados. La evaluación se realizará sobre los mismos conjuntos de datos y siguiendo un procedimiento común, con el objetivo de que las diferencias observadas puedan atribuirse al comportamiento de los modelos y no a cambios en las condiciones de evaluación.
 
-\subsection{Estrategia de validación}
+\subsection{Estrategias de validación}
 
-Además de seleccionar métricas adecuadas, será necesario definir un procedimiento de validación que permita estimar de forma realista la capacidad de generalización de los modelos. Para ello, el conjunto de datos se dividirá en subconjuntos independientes de entrenamiento, validación y prueba. Los datos de entrenamiento se utilizarán para ajustar los modelos, los datos de validación servirán para comparar configuraciones y realizar el ajuste de hiperparámetros, y el conjunto de prueba se reservará para la evaluación final de los modelos seleccionados.
+La evaluación de un modelo predictivo no depende únicamente de las métricas utilizadas, sino también de la forma en la que se separan y reutilizan los datos durante el proceso de entrenamiento y validación. Una estrategia habitual consiste en realizar una partición simple o \textit{hold-out}, dividiendo el conjunto de datos en subconjuntos independientes de entrenamiento, validación y prueba. El conjunto de entrenamiento se utiliza para ajustar el modelo, el de validación permite comparar configuraciones y tomar decisiones durante el desarrollo, y el conjunto de prueba se reserva para estimar el rendimiento final sobre datos no utilizados previamente.
 
-El conjunto de prueba no se utilizará durante la selección de variables, el ajuste de hiperparámetros ni la elección del modelo final. Del mismo modo, cualquier transformación que dependa de la información contenida en los datos, como la imputación de valores ausentes, el escalado o determinadas codificaciones de variables, se ajustará utilizando únicamente los datos de entrenamiento y se aplicará posteriormente a los conjuntos de validación y prueba. De esta forma se reducirá el riesgo de fuga de información entre las diferentes etapas del proceso.
+Una alternativa a la partición simple es la validación cruzada o \textit{cross-validation} \cite{arlot2010crossvalidation}. En la validación cruzada de $k$ particiones, el conjunto de datos se divide en varios subconjuntos y el modelo se entrena repetidamente utilizando diferentes combinaciones de ellos como entrenamiento y validación. Este procedimiento permite obtener una estimación del rendimiento menos dependiente de una única división de los datos, aunque incrementa el coste computacional al requerir varios entrenamientos del mismo modelo.
 
-En el caso de los datos procedentes de anuncios inmobiliarios será especialmente importante detectar registros duplicados o posibles republicaciones de una misma vivienda antes de realizar la división de los datos. La presencia de observaciones correspondientes al mismo inmueble, o a anuncios prácticamente idénticos, tanto en entrenamiento como en prueba podría producir una estimación artificialmente optimista del rendimiento. Por este motivo, la deduplicación formará parte de la preparación previa del conjunto de datos.
+Cuando existen grupos o distribuciones diferenciadas dentro de los datos, puede ser conveniente controlar cómo se construyen las particiones. La estratificación busca mantener una distribución similar de determinadas características entre los diferentes subconjuntos. Aunque se utiliza especialmente en problemas de clasificación, en regresión también pueden emplearse estrategias aproximadas, por ejemplo agrupando la variable objetivo en intervalos antes de realizar la división, cuando resulte necesario conservar una distribución de precios similar entre los conjuntos.
 
-También se tendrá en cuenta la componente territorial del problema. Una división aleatoria permite comparar los modelos bajo unas mismas condiciones, pero puede no reflejar completamente su comportamiento cuando se aplican a zonas geográficas diferentes de las utilizadas durante el entrenamiento. Por ello, siempre que la cantidad y distribución de los datos lo permitan, la evaluación general se complementará con un análisis del rendimiento por provincias o ámbitos territoriales. También se valorará realizar una validación adicional mediante agrupaciones geográficas para estudiar hasta qué punto los modelos mantienen su capacidad predictiva al cambiar de zona.
+En problemas con una componente geográfica, una división completamente aleatoria puede producir estimaciones optimistas si observaciones procedentes de zonas muy próximas aparecen simultáneamente en entrenamiento y validación \cite{roberts2017crossvalidation}. Para analizar la capacidad de generalización espacial pueden utilizarse particiones basadas en grupos geográficos, de forma que determinadas zonas se reserven para la validación. Este tipo de evaluación permite estudiar si las relaciones aprendidas por el modelo se mantienen al aplicarlo a territorios distintos de los empleados durante el entrenamiento.
 
-La estrategia definitiva de validación se determinará una vez conocida la cobertura y distribución del conjunto de datos obtenido. En cualquier caso, se mantendrá un procedimiento común para todos los modelos y se documentarán las decisiones adoptadas para que las diferencias de rendimiento puedan interpretarse de forma comparable.
+La elección de la estrategia de validación depende del tamaño del conjunto de datos, su estructura, el coste computacional de los modelos y el objetivo de la evaluación. En cualquier caso, es importante evitar que información procedente de los datos utilizados para validar o evaluar el modelo intervenga durante el entrenamiento o el preprocesamiento, ya que esto puede producir fuga de información y una estimación artificialmente optimista del rendimiento.
 
 \section{Optimización de hiperparámetros}
 
@@ -464,9 +452,15 @@ El rendimiento de muchos modelos de aprendizaje automático depende de la config
 
 Entre los hiperparámetros más habituales se encuentran la profundidad de los árboles, la tasa de aprendizaje, el número de estimadores, los parámetros de regularización o, en el caso de las redes neuronales, el número de capas, el número de neuronas y la tasa de aprendizaje utilizada durante el entrenamiento.
 
-Una estrategia sencilla consiste en probar manualmente diferentes configuraciones, aunque este procedimiento puede resultar poco eficiente cuando el número de hiperparámetros es elevado. También pueden utilizarse técnicas como la búsqueda en rejilla o Grid Search y la búsqueda aleatoria, que permiten explorar automáticamente distintas combinaciones de valores.
+Una estrategia sencilla consiste en probar manualmente diferentes configuraciones, aunque este procedimiento resulta poco eficiente cuando aumenta el número de hiperparámetros. Entre los métodos automatizados más habituales se encuentran la búsqueda en rejilla o \textit{Grid Search}, que evalúa combinaciones previamente definidas, y la búsqueda aleatoria o \textit{Random Search}, que selecciona combinaciones de forma aleatoria dentro del espacio de búsqueda. La búsqueda en rejilla puede resultar costosa cuando existen muchos hiperparámetros, mientras que la búsqueda aleatoria permite explorar espacios más amplios sin evaluar necesariamente todas las combinaciones posibles \cite{bergstra2012random}.
 
-En este trabajo se plantea utilizar Optuna \cite{akiba2019optuna} como herramienta de optimización de hiperparámetros. Optuna permite definir un espacio de búsqueda y explorar diferentes configuraciones del modelo de forma automática, utilizando los resultados obtenidos en evaluaciones anteriores para orientar la búsqueda hacia combinaciones potencialmente más adecuadas.
+Otra alternativa es la optimización bayesiana, que utiliza los resultados de evaluaciones anteriores para construir progresivamente una estimación de qué regiones del espacio de hiperparámetros pueden resultar más prometedoras. A diferencia de una búsqueda completamente aleatoria, este tipo de estrategia utiliza la información obtenida durante el proceso para orientar las siguientes configuraciones que se evaluarán, lo que puede reducir el número de experimentos necesarios para encontrar soluciones competitivas.
+
+También pueden utilizarse métodos evolutivos, inspirados en mecanismos de selección y variación de poblaciones de soluciones. Estos procedimientos mantienen distintas configuraciones candidatas y generan nuevas alternativas mediante operaciones como selección, recombinación o mutación. Su principal ventaja es la capacidad de explorar espacios de búsqueda complejos, aunque pueden requerir un número elevado de evaluaciones y, por tanto, un mayor coste computacional.
+
+Otra estrategia para reducir el coste de la optimización consiste en la poda o \textit{pruning} de experimentos. En este caso, se interrumpe anticipadamente el entrenamiento de configuraciones cuyo rendimiento parcial indica que difícilmente superarán a las mejores soluciones encontradas hasta ese momento. De esta forma pueden descartarse experimentos poco prometedores antes de completar todo su proceso de entrenamiento y dedicar los recursos disponibles a configuraciones con mejores perspectivas.
+
+En este trabajo se plantea utilizar Optuna \cite{akiba2019optuna} como herramienta de optimización de hiperparámetros. Este framework permite definir espacios de búsqueda, utilizar estrategias de muestreo que aprovechan la información obtenida en experimentos anteriores e incorporar mecanismos de poda para detener de forma anticipada configuraciones poco prometedoras. Estas características permiten realizar una búsqueda más eficiente que una exploración exhaustiva de todas las combinaciones posibles.
 
 La optimización se aplicará únicamente cuando resulte necesaria y se realizará utilizando los datos de entrenamiento y validación, evitando utilizar el conjunto de prueba durante este proceso. De esta forma, el conjunto de prueba podrá reservarse para realizar una evaluación final del rendimiento de los modelos seleccionados.
 
@@ -488,7 +482,7 @@ En el presente trabajo se utilizará SHAP para complementar la evaluación predi
 
 \section{Antecedentes en el mercado inmobiliario español y andaluz}
 
-En España existen distintos trabajos que han aplicado técnicas estadísticas y de aprendizaje automático al análisis del mercado inmobiliario. Entre ellos, el estudio de Mora-Garcia et al. \cite{moragarcia2022housing} resulta especialmente relevante por analizar datos inmobiliarios georreferenciados de Alicante y comparar una regresión lineal con diferentes algoritmos de aprendizaje automático. Los resultados muestran un mejor comportamiento de los modelos no lineales, especialmente de los métodos basados en boosting, con valores de $R^2$ próximos a 0,92 en los modelos con mejor rendimiento. Los autores señalan además que algunos algoritmos basados en bagging, como Random Forest y Extra Trees, presentan mayores problemas de sobreajuste, mientras que XGBoost y LightGBM ofrecen un mejor equilibrio entre capacidad predictiva, generalización y coste computacional.
+En España existen distintos trabajos que han aplicado técnicas estadísticas y de aprendizaje automático al análisis del mercado inmobiliario. Entre ellos, el estudio de Mora-Garcia et al. \cite{moragarcia2022housing} resulta especialmente relevante por analizar datos inmobiliarios georreferenciados de Alicante y comparar una regresión lineal con diferentes algoritmos de aprendizaje automático. En el conjunto de prueba, la regresión lineal obtuvo un $R^2$ de 0,8052, mientras que los modelos basados en árboles alcanzaron resultados claramente superiores. Random Forest obtuvo un $R^2$ de 0,9135, XGBoost de 0,9178 y LightGBM de 0,9140. El mejor resultado correspondió a Gradient Boosting Regressor, con un $R^2$ de 0,9192. En términos de error, este último obtuvo además un RMSE de 0,1818, frente a 0,2823 de la regresión lineal. Los resultados muestran así una mejora considerable de los métodos no lineales respecto al modelo de referencia, aunque los autores también detectan un mayor sobreajuste en algunos algoritmos basados en bagging, como Random Forest y Extra Trees.
 
 También en Alicante, Rico-Juan y Taltavull de La Paz \cite{ricojuan2021asking} analizan específicamente los precios de oferta del mercado residencial mediante modelos hedónicos y técnicas de aprendizaje automático. En este caso, Random Forest obtiene el mejor rendimiento predictivo entre los enfoques comparados y los autores señalan que permite estimar los valores inmobiliarios con un error inferior al 2\%. Este resultado muestra el potencial de los modelos basados en árboles para trabajar con precios de oferta, aunque sus conclusiones se encuentran condicionadas por el ámbito territorial concreto de Alicante y no pueden trasladarse directamente a otros mercados inmobiliarios.
 
@@ -496,82 +490,86 @@ En el caso de Andalucía, Gutiérrez et al. \cite{gutierrez2026andalusia} estudi
 
 Además del rendimiento predictivo, los autores aplican valores SHAP al modelo XGBoost para identificar las variables con mayor influencia en cada ciudad. Los resultados muestran que las características estructurales mantienen una importancia elevada, mientras que el efecto de las variables socioeconómicas y de localización varía entre ciudades \cite{gutierrez2026andalusia}. Esta variabilidad constituye un aspecto especialmente relevante para un análisis a escala andaluza, ya que indica que las relaciones aprendidas en una ciudad no tienen por qué reproducirse de la misma forma en otros mercados locales. No obstante, aunque el estudio incorpora seis ciudades andaluzas, su ámbito no cubre de forma completa el territorio de Andalucía, por lo que sus resultados deben interpretarse teniendo en cuenta esta limitación geográfica y la posible heterogeneidad existente entre municipios no incluidos en el análisis.
 
-Otro antecedente directamente relacionado con este TFM es el estudio de Gutiérrez et al. \cite{gutierrez2026sevilla} centrado en la ciudad de Sevilla. El trabajo utiliza 1.710 anuncios inmobiliarios e incorpora características estructurales, indicadores socioeconómicos a nivel de sección censal y variables de proximidad a servicios. Los autores comparan una regresión hedónica mediante mínimos cuadrados ordinarios con un modelo Random Forest y obtienen un mejor rendimiento predictivo con este último, reduciendo tanto el MAE como el RMSE respecto al modelo lineal.
+Otro antecedente directamente relacionado con este TFM es el estudio de Gutiérrez et al. \cite{gutierrez2026sevilla} centrado en la ciudad de Sevilla. El trabajo utiliza 1.710 anuncios inmobiliarios e incorpora características estructurales, indicadores socioeconómicos a nivel de sección censal y variables de proximidad a servicios. Los autores comparan una regresión hedónica mediante mínimos cuadrados ordinarios con un modelo Random Forest utilizando validación cruzada de 10 pliegues. Random Forest obtiene un $R^2$ de 0,870 frente a 0,788 del modelo lineal y reduce el MAE desde 45.153,9 euros hasta 32.143,9 euros. Del mismo modo, el RMSE disminuye desde 60.373,0 euros hasta 47.101,8 euros y el MAPE pasa del 27,8\% al 19,6\%. Estos resultados muestran una mejora consistente del modelo Random Forest en todas las métricas consideradas.
 
 El estudio de Sevilla incorpora además valores SHAP, curvas ICE y gráficos PDP para interpretar las predicciones. Sus resultados muestran que variables socioeconómicas como la renta media y la proporción de población con estudios superiores, junto con determinadas características estructurales de la vivienda, presentan una influencia importante en los precios de oferta \cite{gutierrez2026sevilla}. No obstante, el análisis se limita a una única ciudad y a una muestra de 1.710 anuncios, por lo que sus resultados no permiten asumir que las mismas relaciones se mantengan de forma homogénea en el conjunto de Andalucía.
 
-Estos antecedentes presentan una relación directa con el enfoque planteado en este TFM. En particular, respaldan la utilización de anuncios inmobiliarios como fuente de información, la incorporación de variables relacionadas con el entorno, la comparación entre modelos tradicionales y métodos de aprendizaje automático y el uso de técnicas de interpretabilidad. El presente trabajo ampliará este planteamiento mediante la comparación de varios algoritmos, incluyendo Random Forest, XGBoost, LightGBM, CatBoost y, si los datos lo permiten, una red neuronal tipo MLP, manteniendo como ámbito de estudio el mercado residencial andaluz.
+\section{Síntesis del estado del arte y contribución de la investigación}
 
-\subsection{Hueco de investigación y aportación del trabajo}
+La revisión realizada muestra que los modelos de aprendizaje automático basados en árboles obtienen generalmente mejores resultados predictivos que los modelos lineales en los estudios inmobiliarios analizados, especialmente cuando existen relaciones no lineales, interacciones entre variables y diferencias territoriales. Los antecedentes desarrollados en Alicante, Sevilla y otras ciudades andaluzas muestran además la utilidad de incorporar información estructural, espacial y socioeconómica, así como de complementar las métricas de error con técnicas de interpretabilidad.
 
-Los antecedentes revisados muestran que ya existen estudios que aplican técnicas de aprendizaje automático a la predicción de precios inmobiliarios en España y, de forma más específica, en Andalucía. Sin embargo, su alcance, los modelos comparados y la forma de abordar la interpretabilidad no coinciden completamente con el planteamiento de este TFM. El estudio de Gutiérrez et al. \cite{gutierrez2026andalusia}, por ejemplo, analiza seis ciudades andaluzas y compara un modelo hedónico con Random Forest, K-Nearest Neighbours y XGBoost, mientras que el estudio posterior centrado en Sevilla \cite{gutierrez2026sevilla} limita el análisis a una única ciudad y compara principalmente una regresión hedónica con Random Forest.
+A pesar de estos antecedentes, los trabajos desarrollados específicamente en Andalucía presentan un alcance territorial y metodológico limitado. Algunos estudios se centran en una única ciudad y otros analizan únicamente un conjunto reducido de municipios, por lo que sigue existiendo margen para estudiar de forma más amplia la heterogeneidad del mercado residencial andaluz y comparar distintos enfoques bajo un procedimiento común de preparación, validación y evaluación.
 
-A partir de estos antecedentes, el presente trabajo no pretende proponer un nuevo algoritmo de aprendizaje automático, sino ampliar la comparación de enfoques aplicados al mercado residencial andaluz. Para ello se plantea evaluar, bajo un mismo procedimiento de preparación y evaluación de los datos, una regresión lineal utilizada como referencia, Random Forest y varios algoritmos de Gradient Boosting, concretamente XGBoost, LightGBM y CatBoost. También se valorará la utilización de una red neuronal tipo MLP como modelo complementario cuando las características del conjunto de datos lo permitan.
+La contribución del presente TFM se sitúa en este contexto. El objetivo no es proponer un nuevo algoritmo, sino realizar una comparación sistemática de diferentes modelos para estimar el precio de oferta de viviendas en Andalucía, combinando el análisis del rendimiento predictivo con la interpretación de las variables que influyen en las estimaciones. Asimismo, se prestará especial atención a las diferencias territoriales y a las limitaciones derivadas de la cobertura y representatividad de los datos disponibles.
 
-Otra diferencia del trabajo será el análisis conjunto de la capacidad predictiva y de la interpretabilidad de los modelos. Además de comparar su rendimiento mediante métricas comunes, se utilizará SHAP para estudiar la influencia de las variables sobre las predicciones y analizar si los factores identificados son coherentes entre distintos modelos y ámbitos territoriales. Asimismo, se estudiará la posibilidad de enriquecer la información procedente de los anuncios inmobiliarios con variables obtenidas de fuentes oficiales cuando puedan integrarse de forma adecuada.
+El Cuadro \ref{tab:literatura_inmobiliaria} resume algunos de los trabajos más relacionados con el enfoque de este TFM y permite comparar sus principales características, los modelos utilizados y los resultados obtenidos.
 
-De este modo, la aportación del TFM se sitúa principalmente en la aplicación comparativa y sistemática de un conjunto más amplio de modelos sobre el mercado residencial andaluz, manteniendo como variable objetivo el precio de oferta y prestando especial atención tanto al rendimiento predictivo como a la interpretación de los resultados. El alcance territorial definitivo y las fuentes adicionales utilizadas dependerán de la cobertura y calidad de los datos finalmente disponibles.
-
-El Cuadro \ref{tab:literatura_inmobiliaria} resume algunos de los trabajos más relacionados con el enfoque de este TFM y permite comparar su ámbito de estudio, la variable objetivo, los principales modelos utilizados y la incorporación de técnicas de interpretabilidad.
-
-\begin{table}[H]
+\begin{table}[!htbp]
 \centering
 \caption{Comparación de trabajos relevantes sobre predicción y valoración inmobiliaria.}
 \label{tab:literatura_inmobiliaria}
 \small
 \renewcommand{\arraystretch}{1.35}
+
 \begin{tabularx}{\textwidth}{
->{\raggedright\arraybackslash}p{4.3cm}
+>{\raggedright\arraybackslash}p{3.2cm}
 >{\raggedright\arraybackslash}X
+>{\raggedright\arraybackslash}p{3.2cm}
 }
 
 \toprule
 \textbf{Trabajo} &
-\textbf{Principales características}
+\textbf{Principales características} &
+\textbf{Mejor modelo / resultado}
 \tabularnewline
+
 \midrule
+
 Mora-Garcia et al. \cite{moragarcia2022housing} &
-Alicante. Predicción de precios de vivienda mediante regresión lineal, Random Forest, Extra Trees, Gradient Boosting, XGBoost y LightGBM. Incluye análisis de importancia de variables.
+Alicante. Predicción de precios mediante regresión lineal, Random Forest, Extra Trees, Gradient Boosting, XGBoost y LightGBM. &
+Gradient Boosting Regressor ($R^2=0,9192$; RMSE $=0,1818$).
 \tabularnewline
+
 \midrule
+
 Rico-Juan y Taltavull de La Paz \cite{ricojuan2021asking} &
-Alicante. Predicción del precio de oferta mediante modelos hedónicos y técnicas de aprendizaje automático, incorporando además análisis de explicabilidad.
+Alicante. Predicción del precio de oferta mediante modelos hedónicos y técnicas de aprendizaje automático, incorporando análisis de explicabilidad. &
+Random Forest (error inferior al 2\%).
 \tabularnewline
+
 \midrule
+
 Guliker et al. \cite{guliker2022spatial} &
-Países Bajos. Valoración inmobiliaria mediante regresión lineal, regresión geográficamente ponderada y XGBoost, con especial atención a las variables espaciales.
+Países Bajos. Valoración inmobiliaria mediante regresión lineal, regresión geográficamente ponderada y XGBoost, con especial atención a variables espaciales. &
+XGBoost, con mejor capacidad predictiva que los modelos de regresión comparados.
 \tabularnewline
+
 \midrule
+
 Iban \cite{iban2022explainable} &
-Valoración residencial mediante Random Forest, XGBoost, LightGBM y Gradient Boosting. Utiliza SHAP para interpretar los factores que influyen en las estimaciones.
+Valoración residencial mediante Random Forest, XGBoost, LightGBM y Gradient Boosting. Utiliza SHAP para interpretar los factores que influyen en las estimaciones. &
+Modelos basados en árboles con rendimiento superior a los enfoques de referencia; análisis posterior mediante SHAP.
 \tabularnewline
+
 \midrule
+
 Gutiérrez et al. \cite{gutierrez2026andalusia} &
-Seis ciudades de Andalucía. Predicción utilizando anuncios inmobiliarios y comparación de regresión hedónica, Random Forest, KNN y XGBoost. Incorpora SHAP.
+Seis ciudades de Andalucía. Predicción mediante anuncios inmobiliarios y comparación de regresión hedónica, Random Forest, KNN y XGBoost. Incorpora SHAP. &
+Los modelos de aprendizaje automático superan al modelo lineal; XGBoost se utiliza además para el análisis SHAP.
 \tabularnewline
+
 \midrule
+
 Gutiérrez et al. \cite{gutierrez2026sevilla} &
-Sevilla. Análisis del precio de oferta mediante regresión hedónica y Random Forest, utilizando técnicas de interpretabilidad como SHAP.
+Sevilla. Predicción del precio de oferta mediante regresión hedónica y Random Forest, incorporando SHAP, ICE y PDP. &
+Random Forest ($R^2=0,870$; MAE = 32.143,9~€; RMSE = 47.101,8~€).
 \tabularnewline
+
 \bottomrule
 \end{tabularx}
 \end{table}
 
 La comparación muestra que los trabajos más próximos al presente TFM combinan progresivamente modelos tradicionales y técnicas de aprendizaje automático, incorporando además variables espaciales, socioeconómicas y herramientas de interpretabilidad. También se observa que no todos los estudios utilizan la misma variable objetivo, ya que algunos trabajan con precios de oferta, otros con precios inmobiliarios obtenidos de anuncios y otros con valores de tasación. Esta diferencia refuerza la necesidad de interpretar los resultados de cada estudio dentro de su propio contexto.
-
-\section{Síntesis del estado del arte}
-
-La revisión realizada muestra que la predicción de precios de vivienda se ha abordado mediante enfoques muy diversos, desde modelos estadísticos tradicionales hasta algoritmos de aprendizaje automático capaces de representar relaciones no lineales e interacciones complejas entre variables. Los modelos hedónicos y la regresión lineal continúan siendo útiles como referencia por su facilidad de interpretación, mientras que métodos como Random Forest y los algoritmos de Gradient Boosting ofrecen una mayor flexibilidad para trabajar con relaciones más complejas.
-
-La literatura revisada también pone de manifiesto la importancia de la calidad y variedad de la información utilizada. Además de las características estructurales de las viviendas, las variables relacionadas con la localización, el entorno urbano y las condiciones socioeconómicas pueden aportar información relevante para explicar las diferencias de precio entre inmuebles y zonas geográficas.
-
-Los trabajos desarrollados en España y, especialmente, los centrados en Andalucía muestran que la aplicación de técnicas de aprendizaje automático al mercado inmobiliario regional es viable y que los modelos no lineales pueden ofrecer resultados competitivos frente a enfoques tradicionales. Estos antecedentes también respaldan la utilización de datos procedentes de anuncios inmobiliarios y la incorporación de técnicas de interpretabilidad para analizar los factores que influyen en las predicciones.
-
-La revisión realizada permite además concretar algunos de los objetivos parciales planteados inicialmente. En particular, la comparación de modelos se centrará prioritariamente en una regresión lineal utilizada como referencia, Random Forest y distintos algoritmos de Gradient Boosting como XGBoost, LightGBM y CatBoost. La utilización de una red neuronal MLP se mantendrá como alternativa complementaria en función de las características y del volumen de los datos disponibles. Asimismo, la evaluación se apoyará principalmente en MAE, RMSE y $R^2$, se utilizará Optuna para el ajuste de hiperparámetros cuando resulte necesario y SHAP para estudiar la contribución de las variables a las predicciones.
-
-Además de analizar la capacidad predictiva de los modelos, se prestará especial atención a su interpretación mediante SHAP. Esto permitirá estudiar qué variables tienen una mayor influencia sobre las estimaciones realizadas y analizar si estas relaciones son coherentes con los resultados descritos en la literatura.
-
-En conjunto, el estado del arte proporciona una base para la metodología planteada en este TFM y permite justificar tanto la selección inicial de modelos como las técnicas de evaluación, optimización e interpretabilidad que se utilizarán posteriormente. La implementación final podrá ajustarse en función de la calidad y características del conjunto de datos obtenido, manteniendo como objetivo principal la estimación del precio de oferta de viviendas residenciales en Andalucía.
 
 \iffalse
 \chapter{Materiales y métodos}
