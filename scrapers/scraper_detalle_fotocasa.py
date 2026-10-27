@@ -85,6 +85,9 @@ CHECKPOINT_CADA = 20
 # Si el CSV de salida ya existe, solo se procesan enlaces pendientes.
 REANUDAR = True
 
+# Los errores de Chrome no son fichas completadas: reintentarlos al volver.
+REINTENTAR_ERRORES_TECNICOS = True
+
 # Procesar TODO el conjunto provincial.
 FILA_INICIO = 0
 FILA_FIN = None
@@ -3330,107 +3333,145 @@ def cargar_datos_provincias():
 
 
 # ═══════════════════════════════════════════════════════════════
+# DIARIO DURABLE: un registro persistente por anuncio terminado
+# ═══════════════════════════════════════════════════════════════
+
+# El diario y el CSV son distintos para la versión V2 y la del repo,
+# porque se derivan de OUTPUT_CSV. No comparten progreso entre sí.
+JOURNAL_FILE = OUTPUT_CSV + ".pendientes.jsonl"
+
+
+def _valor_json(valor):
+    """Normaliza tipos de pandas/numpy sin perder campos del anuncio."""
+    if isinstance(valor, dict):
+        return {str(k): _valor_json(v) for k, v in valor.items()}
+    if isinstance(valor, (list, tuple)):
+        return [_valor_json(v) for v in valor]
+    try:
+        if pd.isna(valor):
+            return None
+    except (TypeError, ValueError):
+        pass
+    if hasattr(valor, "item"):
+        try:
+            return _valor_json(valor.item())
+        except (TypeError, ValueError):
+            pass
+    if hasattr(valor, "isoformat"):
+        return valor.isoformat()
+    if isinstance(valor, (str, int, float, bool)) or valor is None:
+        return valor
+    return str(valor)
+
+
+def _reparar_ultima_linea_journal():
+    """Descarta únicamente una línea incompleta tras un apagado abrupto."""
+    if not os.path.isfile(JOURNAL_FILE):
+        return
+    with open(JOURNAL_FILE, "rb+") as archivo:
+        contenido = archivo.read()
+        if contenido and not contenido.endswith(b"\n"):
+            ultimo_salto = contenido.rfind(b"\n")
+            archivo.truncate(ultimo_salto + 1)
+            archivo.flush()
+            os.fsync(archivo.fileno())
+            print("AVISO: se descartó una línea incompleta del diario; se repetirá esa ficha.")
+
+
+def _anotar_procesado(fila):
+    """Confirma cada ficha en disco ANTES de pasar a la siguiente."""
+    os.makedirs(os.path.dirname(OUTPUT_CSV), exist_ok=True)
+    _reparar_ultima_linea_journal()
+    registro = _valor_json(fila)
+    linea = json.dumps(registro, ensure_ascii=False, allow_nan=False) + "\n"
+    with open(JOURNAL_FILE, "a", encoding="utf-8", newline="\n") as archivo:
+        archivo.write(linea)
+        archivo.flush()
+        os.fsync(archivo.fileno())
+
+
+def _leer_diario():
+    """Lee los registros confirmados; no ignora silenciosamente corrupción."""
+    _reparar_ultima_linea_journal()
+    if not os.path.isfile(JOURNAL_FILE) or os.path.getsize(JOURNAL_FILE) == 0:
+        return []
+    registros = []
+    with open(JOURNAL_FILE, "r", encoding="utf-8") as archivo:
+        for numero, linea in enumerate(archivo, start=1):
+            try:
+                registros.append(json.loads(linea))
+            except json.JSONDecodeError as exc:
+                raise RuntimeError(
+                    f"Diario corrupto en línea {numero}: {JOURNAL_FILE}. "
+                    "No se borrará; revísalo antes de continuar."
+                ) from exc
+    return registros
+
+
+# ═══════════════════════════════════════════════════════════════
 # GUARDAR
 # ═══════════════════════════════════════════════════════════════
 
-def _guardar(resultados_nuevos):
+def _guardar(resultados_nuevos=None):
     """
-    Mezcla el lote nuevo con el CSV persistido y deduplica de forma
-    estable. Un CSV existente pero vacío se trata como inexistente.
-    """
+    Consolida CSV anterior + diario durable + lote opcional.
 
-    if not resultados_nuevos:
+    Escribe en un archivo temporal y usa os.replace para no dejar el
+    CSV maestro a medias si se corta el proceso durante el guardado.
+    El diario solo se vacía DESPUÉS de sustituir correctamente el CSV.
+    """
+    registros_diario = _leer_diario()
+    registros_nuevos = registros_diario + list(resultados_nuevos or [])
+    if not registros_nuevos:
         return
 
-    os.makedirs(
-        os.path.dirname(OUTPUT_CSV),
-        exist_ok=True
-    )
-
-    df_nuevos = pd.DataFrame(
-        resultados_nuevos
-    )
-
+    os.makedirs(os.path.dirname(OUTPUT_CSV), exist_ok=True)
+    df_nuevos = pd.DataFrame(registros_nuevos)
     if "_clave_anuncio" not in df_nuevos.columns:
-        df_nuevos["_clave_anuncio"] = df_nuevos.apply(
-            _clave_anuncio,
-            axis=1
-        )
+        df_nuevos["_clave_anuncio"] = df_nuevos.apply(_clave_anuncio, axis=1)
 
     df_comb = df_nuevos
-
-    if (
-        REANUDAR
-        and os.path.exists(OUTPUT_CSV)
-        and os.path.getsize(OUTPUT_CSV) > 0
-    ):
+    if REANUDAR and os.path.isfile(OUTPUT_CSV) and os.path.getsize(OUTPUT_CSV) > 0:
         try:
-            df_exist = pd.read_csv(
-                OUTPUT_CSV,
-                encoding="utf-8-sig"
-            )
-
+            df_exist = pd.read_csv(OUTPUT_CSV, encoding="utf-8-sig")
             if "_clave_anuncio" not in df_exist.columns:
-                df_exist["_clave_anuncio"] = df_exist.apply(
-                    _clave_anuncio,
-                    axis=1
-                )
-
-            df_comb = pd.concat(
-                [df_exist, df_nuevos],
-                ignore_index=True,
-                sort=False
-            )
-
+                df_exist["_clave_anuncio"] = df_exist.apply(_clave_anuncio, axis=1)
+            df_comb = pd.concat([df_exist, df_nuevos], ignore_index=True, sort=False)
         except pd.errors.EmptyDataError:
-            df_comb = df_nuevos
+            pass
 
-    df_comb = df_comb[
-        df_comb["_clave_anuncio"].notna()
-    ].copy()
-
-    df_comb.drop_duplicates(
-        subset=["_clave_anuncio"],
-        keep="last",
-        inplace=True
-    )
-
-    cols_orden = [
-        c
-        for c in [
-            "provincia",
-            "municipio",
-            "distrito",
-            "zona",
-            "precio_eur",
-        ]
-        if c in df_comb.columns
-    ]
-
+    df_comb = df_comb[df_comb["_clave_anuncio"].notna()].copy()
+    df_comb.drop_duplicates(subset=["_clave_anuncio"], keep="last", inplace=True)
+    cols_orden = [c for c in ["provincia", "municipio", "distrito", "zona", "precio_eur"]
+                  if c in df_comb.columns]
     if cols_orden:
-        df_comb.sort_values(
-            by=cols_orden,
-            inplace=True,
-            na_position="last"
-        )
+        df_comb.sort_values(by=cols_orden, inplace=True, na_position="last")
+    df_comb.reset_index(drop=True, inplace=True)
+    df_salida = df_comb.drop(columns=["_clave_anuncio"], errors="ignore")
 
-    df_comb.reset_index(
-        drop=True,
-        inplace=True
+    # El temporal debe vivir en el mismo directorio que el destino para
+    # garantizar sustitución atómica en el mismo volumen (también Windows).
+    import tempfile
+    fd, temporal = tempfile.mkstemp(
+        prefix=".fotocasa_detalle_", suffix=".tmp", dir=os.path.dirname(OUTPUT_CSV)
     )
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8-sig", newline="") as archivo:
+            df_salida.to_csv(archivo, index=False)
+            archivo.flush()
+            os.fsync(archivo.fileno())
+        os.replace(temporal, OUTPUT_CSV)
+    finally:
+        if os.path.exists(temporal):
+            os.remove(temporal)
 
-    # _clave_anuncio es puramente técnica; no hace falta contaminar el
-    # dataset final del TFM con ella.
-    df_salida = df_comb.drop(
-        columns=["_clave_anuncio"],
-        errors="ignore"
-    )
-
-    df_salida.to_csv(
-        OUTPUT_CSV,
-        index=False,
-        encoding="utf-8-sig"
-    )
+    # Si se interrumpe justo aquí, el diario se reproducirá en la próxima
+    # ejecución y la deduplicación evitará duplicados.
+    if registros_diario:
+        with open(JOURNAL_FILE, "wb") as archivo:
+            archivo.flush()
+            os.fsync(archivo.fileno())
+    print(f"   💾 CSV consolidado: {len(df_salida)} anuncios únicos")
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -3627,6 +3668,11 @@ def main():
     # REANUDACIÓN
     # --------------------------------------------------------
 
+    # Recupera fichas confirmadas en el diario que todavía no se habían
+    # consolidado en el CSV (Ctrl+C, cierre de terminal, caída de Chrome...).
+    if REANUDAR:
+        _guardar([])
+
     ya_procesados = set()
 
     if (
@@ -3646,8 +3692,22 @@ def main():
                     axis=1
                 )
 
+            # No dar por finalizadas fichas que fallaron por problemas
+            # transitorios de Chrome/ChromeDriver en ejecuciones previas.
+            if (
+                REINTENTAR_ERRORES_TECNICOS
+                and "motivo_validacion" in df_exist.columns
+            ):
+                fallos = df_exist["motivo_validacion"].fillna("").astype(str).str.startswith(
+                    "ERROR_TECNICO_DRIVER"
+                )
+                df_completados = df_exist.loc[~fallos]
+                print(f"Fallos técnicos a reintentar: {int(fallos.sum())}")
+            else:
+                df_completados = df_exist
+
             ya_procesados = set(
-                df_exist["_clave_anuncio"]
+                df_completados["_clave_anuncio"]
                 .dropna()
                 .astype(str)
             )
@@ -3684,7 +3744,6 @@ def main():
         return
 
     driver = None
-    resultados_nuevos = []
     total = len(pendientes)
     procesados_sesion = 0
 
@@ -3708,10 +3767,7 @@ def main():
                 procesados_sesion > 0
                 and procesados_sesion % REINICIAR_DRIVER_CADA == 0
             ):
-                _guardar(
-                    resultados_nuevos
-                )
-                resultados_nuevos = []
+                _guardar([])
 
                 driver = reiniciar_driver(
                     driver,
@@ -3756,9 +3812,9 @@ def main():
             fila_dict.pop("_clave_anuncio", None)
             fila_dict.update(detalle)
 
-            resultados_nuevos.append(
-                fila_dict
-            )
+            # Persistencia por anuncio: no esperamos al lote de 20.
+            # Si se interrumpe ahora, este anuncio ya está en el diario.
+            _anotar_procesado(fila_dict)
 
             procesados_sesion += 1
 
@@ -3820,10 +3876,7 @@ def main():
             )
 
             if numero % CHECKPOINT_CADA == 0:
-                _guardar(
-                    resultados_nuevos
-                )
-                resultados_nuevos = []
+                _guardar([])
 
                 print(
                     f"   Checkpoint ({numero}/{total})"
@@ -3840,20 +3893,18 @@ def main():
         print(
             "\n\nInterrupción manual detectada. Guardando antes de salir..."
         )
-        _guardar(
-            resultados_nuevos
-        )
-        resultados_nuevos = []
+        _guardar([])
         print(
             "Progreso guardado. Puedes reanudar ejecutando el script otra vez."
         )
 
     finally:
-        # Guardado defensivo incluso si aparece una excepción inesperada.
-        _guardar(
-            resultados_nuevos
-        )
-        cerrar_driver(driver)
+        # El navegador se cierra aunque falle la consolidación.
+        # Si falla el CSV, el diario conserva todas las filas confirmadas.
+        try:
+            _guardar([])
+        finally:
+            cerrar_driver(driver)
 
     # --------------------------------------------------------
     # RESUMEN FINAL
