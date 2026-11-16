@@ -69,13 +69,22 @@ Es importante señalar que el precio observado en Fotocasa es un **precio de ofe
 
 ### Ministerio de Vivienda y Agenda Urbana (MIVAU)
 
-Se utilizan datos oficiales del mercado de vivienda para aportar contexto sobre la actividad inmobiliaria. Entre las variables disponibles se encuentran el número y el valor agregado de las transacciones inmobiliarias, desagregados por territorio, periodo y tipo de vivienda.
+Se utilizan datos oficiales del mercado de vivienda para aportar contexto sobre la actividad inmobiliaria. Las tablas se descargan del [Boletín Online del MIVAU](https://apps.fomento.gob.es/BoletinOnline2/?nivel=2&orden=34000000), apartado *Transacciones inmobiliarias (compraventa)*:
 
-Esta fuente permite complementar los precios de oferta observados en los anuncios con indicadores del mercado real de compraventas.
+| Tabla | Contenido | Uso en el TFM |
+|---|---|---|
+| 2.3 | Transacciones de vivienda nueva por municipios | Actividad del mercado local |
+| 2.4 | Transacciones de vivienda de segunda mano por municipios | Actividad del mercado local |
+| 3.3.1 | Valor medio de las transacciones de vivienda libre nueva (provincias) | Referencia de precio de transacción |
+| 3.3.2 | Valor medio de las transacciones de vivienda libre de segunda mano (provincias) | Referencia de precio de transacción |
+
+Esta fuente permite complementar los precios de oferta observados en los anuncios con indicadores del mercado real de compraventas: número de compraventas del municipio en los cuatro últimos trimestres publicados, su ratio por cada 1.000 habitantes y el valor medio de compraventa de la provincia.
 
 ### Instituto Nacional de Estadística (INE)
 
-Se prevé incorporar información estadística relacionada con renta, población y otras características socioeconómicas que permitan caracterizar el entorno de los inmuebles.
+Se utilizan las *Cifras oficiales de población de los municipios españoles: Revisión del Padrón Municipal* ([detalle municipal](https://www.ine.es/dynt3/inebase/es/index.htm?padre=525)), una tabla por provincia, con la población a 1 de enero de 2025. Además de la población, aportan el **código INE** de cada municipio, que se utiliza como clave para cruzar Fotocasa, INE y MIVAU, ya que los nombres de municipio no coinciden siempre entre fuentes.
+
+En función del avance del trabajo podrá incorporarse también información de renta u otras características socioeconómicas.
 
 ### Instituto de Estadística y Cartografía de Andalucía (IECA)
 
@@ -121,6 +130,35 @@ Antes de aceptar una ficha como válida se comprueba que corresponde al anuncio 
 
 También se detectan expresamente los anuncios que han dejado de estar disponibles para evitar mezclar datos del anuncio original con inmuebles recomendados por el portal.
 
+### 3. Extracción específica de capitales de provincia
+
+En la extracción provincial, cuando transcurre tiempo entre el listado y la consulta de detalle, una parte de los anuncios ya no está disponible al visitar su ficha. Además, las capitales, al dividirse en muchas zonas, eran las más expuestas a fallos del navegador, por lo que quedaron poco representadas.
+
+Para ellas se utiliza un scraper específico (`scraper_capitales.py`) que:
+
+- recorre las zonas (distritos) de cada capital;
+- extrae el listado de una zona y visita **inmediatamente** las fichas de detalle de sus anuncios, de modo que apenas transcurren minutos entre ambas fases;
+- reparte la muestra entre zonas mediante un cupo por zona, para no concentrarla en los primeros distritos recorridos;
+- fija un objetivo de anuncios con detalle validado por capital;
+- reinicia el navegador y reintenta la misma zona si la sesión se cae;
+- guarda cada anuncio en el momento y permite reanudar la ejecución.
+
+La salida tiene exactamente las mismas columnas que la del scraper de detalle, por lo que ambas se combinan después en un único conjunto de datos.
+
+## Integración de fuentes
+
+Los scripts de `src` preparan el conjunto de datos de análisis:
+
+1. `procesar_mivau.py`: convierte las tablas Excel del MIVAU en CSV ordenados. Cada fichero se identifica por el número de tabla que aparece en su título.
+2. `combinar_fotocasa.py`: une los anuncios con detalle de la extracción provincial y de la de capitales, eliminando duplicados (prevalece el detalle validado y, a igualdad, la extracción más reciente).
+3. `enriquecer_fotocasa.py`: asigna a cada anuncio el código INE de su municipio y añade población, actividad del mercado y valor medio de transacción. Genera además una tabla de correspondencia entre municipios de Fotocasa e INE para documentar el cruce.
+
+Algunas decisiones de integración:
+
+- Las zonas o urbanizaciones que Fotocasa presenta como municipio (por ejemplo, Sotogrande o Montequinto) se asignan a su municipio oficial.
+- Como referencia del MIVAU se usa el valor medio de vivienda nueva cuando el anuncio es de obra nueva o tiene menos de un año, y el de segunda mano en el resto.
+- No se incorporan datos del Catastro: la referencia catastral aparece en una proporción mínima de anuncios, y cruzar por proximidad podría asignar a una vivienda los datos de otra cercana.
+
 ## Código de referencia
 
 La primera implementación del proceso de adquisición de datos se basó en el repositorio público de Rocío Benítez:
@@ -150,37 +188,35 @@ Por tanto, este repositorio no constituye una copia directa del proyecto de refe
 
 ```text
 tfm-vivienda-andalucia/
-├── scrapers/
-│   ├── __init__.py
-│   ├── fotocasa_base.py
-│   ├── provincias.py
-│   ├── scraper_detalle_fotocasa.py
-│   ├── scraper_fotocasa_andalucia.py
-│   ├── scraper_fotocasa_almeria.py
-│   ├── scraper_fotocasa_cadiz.py
-│   ├── scraper_fotocasa_cordoba.py
-│   ├── scraper_fotocasa_granada.py
-│   ├── scraper_fotocasa_huelva.py
-│   ├── scraper_fotocasa_jaen.py
-│   ├── scraper_fotocasa_malaga.py
-│   └── scraper_fotocasa_sevilla.py
+├── scrapers/                         Adquisición de datos de Fotocasa
+│   ├── fotocasa_base.py              lógica común del scraper de listados
+│   ├── provincias.py                 provincias y URL de partida
+│   ├── scraper_fotocasa_<provincia>.py   un lanzador por provincia
+│   ├── scraper_fotocasa_andalucia.py     lanza las ocho provincias
+│   ├── scraper_detalle_fotocasa.py   fichas de detalle y validación
+│   └── scraper_capitales.py          capitales: listado + detalle a la vez
 │
-├── data/
-│   └── provincias/
-│       └── .gitkeep
+├── src/                              Preparación del conjunto de datos
+│   ├── procesar_mivau.py
+│   ├── combinar_fotocasa.py
+│   └── enriquecer_fotocasa.py
 │
-├── notebooks/
-│   └── .gitkeep
+├── data/                             (contenido excluido del repositorio)
+│   ├── provincias/                   listados provinciales
+│   ├── capitales/                    extracción de capitales
+│   ├── externos/
+│   │   ├── mivau/                    Excel descargados del MIVAU
+│   │   └── ine/                      Excel descargados del INE
+│   └── procesado/                    salidas de src/
 │
-├── src/
-│   └── .gitkeep
-│
+├── notebooks/                        análisis exploratorio y modelado
+├── doc/                              memoria del TFM (LaTeX)
 ├── .gitignore
 ├── requirements.txt
 └── README.md
 ```
 
-La carpeta `scrapers` contiene el código de adquisición y enriquecimiento de datos. Las fases posteriores del TFM, como limpieza, integración, análisis exploratorio, generación de variables y modelado, se incorporarán progresivamente en `src` y `notebooks`.
+La carpeta `scrapers` contiene el código de adquisición de datos y `src` el de integración. Las fases posteriores del TFM (limpieza, análisis exploratorio, generación de variables y modelado) se incorporarán progresivamente en `src` y `notebooks`.
 
 ## Datos no incluidos en el repositorio
 
@@ -198,13 +234,7 @@ Esta decisión permite separar claramente:
 
 Se recomienda utilizar Python 3.10 o superior.
 
-Las principales dependencias son:
-
-```text
-pandas
-selenium
-beautifulsoup4
-```
+Las principales dependencias son `selenium`, `beautifulsoup4` y `pandas` para la adquisición, y `xlrd` y `openpyxl` para leer los Excel de las fuentes oficiales.
 
 La instalación completa puede realizarse mediante:
 
@@ -242,6 +272,27 @@ python scraper_detalle_fotocasa.py
 
 El scraper de detalle combina los anuncios provinciales, elimina duplicados y visita las fichas individuales para completar el conjunto de datos.
 
+### Ejecutar la extracción de capitales
+
+```bash
+python scraper_capitales.py                   # las ocho capitales
+python scraper_capitales.py malaga sevilla    # solo las indicadas
+```
+
+Las capitales que ya alcanzan el objetivo de anuncios validados (`OBJETIVO_VALIDOS`) se omiten. La ejecución puede interrumpirse y relanzarse: continúa por la zona en la que se quedó.
+
+### Preparar el conjunto de datos
+
+Tras colocar los Excel del MIVAU en `data/externos/mivau/` y los del INE en `data/externos/ine/`, desde la raíz del repositorio:
+
+```bash
+python src/procesar_mivau.py
+python src/combinar_fotocasa.py
+python src/enriquecer_fotocasa.py
+```
+
+El resultado es `data/procesado/fotocasa_andalucia_enriquecido.csv`.
+
 ## Metodología de análisis prevista
 
 Tras la adquisición e integración de datos, el flujo metodológico del TFM contempla las siguientes etapas:
@@ -262,10 +313,11 @@ Tras la adquisición e integración de datos, el flujo metodológico del TFM con
 Entre los modelos inicialmente considerados se encuentran:
 
 - regresión lineal como baseline;
-- árboles de decisión;
 - Random Forest;
 - XGBoost;
-- LightGBM.
+- LightGBM;
+- CatBoost;
+- de forma opcional, una red neuronal multicapa (MLP).
 
 Para la optimización de hiperparámetros se contempla el uso de Optuna y para la interpretación de modelos se estudiará el uso de SHAP.
 
@@ -341,4 +393,8 @@ Universitat Oberta de Catalunya (UOC)
 
 Proyecto en desarrollo.
 
-Actualmente se está trabajando en la adquisición, validación y enriquecimiento del conjunto de datos de vivienda en Andalucía. Las fases de integración con fuentes oficiales, análisis exploratorio y modelado se incorporarán progresivamente al repositorio.
+- [x] Extracción de listados y fichas de detalle de las ocho provincias.
+- [x] Integración con MIVAU e INE mediante código de municipio.
+- [ ] Ampliación de la muestra de las capitales de provincia.
+- [ ] Limpieza y análisis exploratorio.
+- [ ] Entrenamiento, evaluación e interpretación de modelos.

@@ -1,10 +1,53 @@
+# ---------------------------------------------------------------
+# Datos: no se publican (ver README, "Datos no incluidos")
+# ---------------------------------------------------------------
 data/**/*.csv
 data/**/*.json
+data/**/*.jsonl
 data/**/*.parquet
 data/**/*.xlsx
+data/**/*.xls
+data/**/*.XLS
 data/**/*.log
+data/**/*.tmp
 
 data/provincias/checkpoints/
 data/provincias/estados/
 data/provincias/errores/
 data/provincias/runs/
+data/capitales/checkpoints/
+
+# ---------------------------------------------------------------
+# Python
+# ---------------------------------------------------------------
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.ipynb_checkpoints/
+
+# ---------------------------------------------------------------
+# LaTeX (doc/): se versionan solo las fuentes
+# ---------------------------------------------------------------
+doc/*.aux
+doc/*.bbl
+doc/*.blg
+doc/*.log
+doc/*.out
+doc/*.toc
+doc/*.lof
+doc/*.lot
+doc/*.fls
+doc/*.fdb_latexmk
+doc/*.synctex.gz
+doc/*.bcf
+doc/*.run.xml
+
+# ---------------------------------------------------------------
+# Sistema / editores
+# ---------------------------------------------------------------
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
