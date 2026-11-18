@@ -6,3 +6,8 @@ pandas>=2.0
 # Fuentes oficiales (src/): Excel del MIVAU (.xls) e INE (.xlsx)
 xlrd>=2.0
 openpyxl>=3.1
+
+# Análisis exploratorio (notebooks/)
+matplotlib>=3.8
+scipy>=1.11
+jupyter

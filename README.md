@@ -159,6 +159,42 @@ Algunas decisiones de integración:
 - Como referencia del MIVAU se usa el valor medio de vivienda nueva cuando el anuncio es de obra nueva o tiene menos de un año, y el de segunda mano en el resto.
 - No se incorporan datos del Catastro: la referencia catastral aparece en una proporción mínima de anuncios, y cruzar por proximidad podría asignar a una vivienda los datos de otra cercana.
 
+## Limpieza
+
+`src/limpieza.py` genera el conjunto de datos de análisis a partir del enriquecido. Aplica, en orden, las siguientes reglas y registra en `informe_limpieza.csv` cuántos anuncios elimina cada una:
+
+| # | Regla | Motivo |
+|---|---|---|
+| 1 | Solo anuncios con detalle validado | Criterio acordado con el tutor |
+| 2 | Municipio identificado (código INE) | Elimina un pseudo-municipio de navegación del portal |
+| 3 | Sin fincas rústicas | Superficies y precios no comparables con vivienda urbana |
+| 4 | Sin subastas, nudas propiedades ni viviendas ocupadas | El precio no refleja el mercado libre |
+| 5 | Con precio y superficie | Variable objetivo y principal predictora |
+| 6 | Precio entre 20.000 € y 5.000.000 € | Errores de precio y casos singulares |
+| 7 | Superficie entre 15 y 1.500 m² | Superficies imposibles o de parcela |
+| 8 | Precio por m² entre 200 y 20.000 € | Incoherencias entre precio y superficie |
+| 9 | Hasta 15 habitaciones y 10 baños | Valores imposibles |
+| 10 | Sin duplicados | Misma vivienda publicada varias veces (mismas características y descripción) |
+
+Además, normaliza las variables:
+
+- **Equipamiento**: una característica se considera presente si figura en el listado o en la ficha de detalle, ya que cada fuente la recoge de forma incompleta.
+- **Planta**: se convierte a número (bajo = 0, sótano = −1) aceptando solo formas inequívocas; el valor "+15 planta", que el portal usa como relleno, se trata como desconocido.
+- **Estado, antigüedad y orientación**: los valores no informados se codifican como categoría propia ("Desconocido"); la antigüedad se resume además en años (punto medio del intervalo).
+- **Tipo de vivienda**: los anuncios sin tipo se clasifican a partir del título.
+
+Las columnas `precio_m2` y `bajada_precio_eur` se conservan como informativas, pero derivan del precio y no deben usarse como predictoras.
+
+## Análisis exploratorio
+
+`notebooks/01_analisis_exploratorio.ipynb` analiza el conjunto de datos limpio y guarda sus figuras en `doc/figuras/eda/` para la memoria. Principales conclusiones:
+
+- El precio tiene una fuerte asimetría (coeficiente 4,4) que el logaritmo corrige casi por completo (0,1), por lo que se modelará `log_precio`.
+- La provincia no basta para explicar el precio: en todas salvo Málaga la capital es más cara que el resto, y la costa concentra los precios más altos.
+- Pisos y casas difieren en nivel de precio por m², pero la relación entre precio y superficie tiene casi la misma pendiente en ambos grupos, lo que permite un único modelo con el tipo de vivienda como variable.
+- Las variables más asociadas al precio son los baños, el valor medio de compraventa del MIVAU y la superficie; la actividad del mercado y la población aportan información de localización.
+- La antigüedad tiene una relación no lineal con el precio (los pisos de cascos históricos vuelven a encarecerse), lo que favorece a los modelos basados en árboles.
+
 ## Código de referencia
 
 La primera implementación del proceso de adquisición de datos se basó en el repositorio público de Rocío Benítez:
@@ -199,7 +235,8 @@ tfm-vivienda-andalucia/
 ├── src/                              Preparación del conjunto de datos
 │   ├── procesar_mivau.py
 │   ├── combinar_fotocasa.py
-│   └── enriquecer_fotocasa.py
+│   ├── enriquecer_fotocasa.py
+│   └── limpieza.py
 │
 ├── data/                             (contenido excluido del repositorio)
 │   ├── provincias/                   listados provinciales
@@ -209,8 +246,11 @@ tfm-vivienda-andalucia/
 │   │   └── ine/                      Excel descargados del INE
 │   └── procesado/                    salidas de src/
 │
-├── notebooks/                        análisis exploratorio y modelado
+├── notebooks/
+│   └── 01_analisis_exploratorio.ipynb
+│
 ├── doc/                              memoria del TFM (LaTeX)
+│   └── figuras/eda/                  figuras del análisis exploratorio
 ├── .gitignore
 ├── requirements.txt
 └── README.md
@@ -289,9 +329,10 @@ Tras colocar los Excel del MIVAU en `data/externos/mivau/` y los del INE en `dat
 python src/procesar_mivau.py
 python src/combinar_fotocasa.py
 python src/enriquecer_fotocasa.py
+python src/limpieza.py
 ```
 
-El resultado es `data/procesado/fotocasa_andalucia_enriquecido.csv`.
+El resultado es `data/procesado/fotocasa_andalucia_limpio.csv`.
 
 ## Metodología de análisis prevista
 
@@ -395,6 +436,7 @@ Proyecto en desarrollo.
 
 - [x] Extracción de listados y fichas de detalle de las ocho provincias.
 - [x] Integración con MIVAU e INE mediante código de municipio.
-- [ ] Ampliación de la muestra de las capitales de provincia.
-- [ ] Limpieza y análisis exploratorio.
+- [x] Ampliación de la muestra de las capitales de provincia.
+- [x] Limpieza del conjunto de datos.
+- [x] Análisis exploratorio.
 - [ ] Entrenamiento, evaluación e interpretación de modelos.
