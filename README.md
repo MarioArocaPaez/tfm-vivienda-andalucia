@@ -195,6 +195,33 @@ Las columnas `precio_m2` y `bajada_precio_eur` se conservan como informativas, p
 - Las variables más asociadas al precio son los baños, el valor medio de compraventa del MIVAU y la superficie; la actividad del mercado y la población aportan información de localización.
 - La antigüedad tiene una relación no lineal con el precio (los pisos de cascos históricos vuelven a encarecerse), lo que favorece a los modelos basados en árboles.
 
+## Modelado
+
+`src/preprocesado.py` fija las variables del modelo y una partición entrenamiento/prueba 80/20 estratificada por provincia (`data/procesado/particion.csv`). La variable objetivo es `log_precio`. Las variables que describen el anuncio y no la vivienda (número de fotos, longitud de la descripción, bajada de precio) se excluyen del modelo principal y se evalúan aparte.
+
+`src/modelado.py` ajusta los hiperparámetros de cada modelo con Optuna (40 pruebas, validación cruzada de 5 particiones sobre entrenamiento) y evalúa el modelo final una única vez sobre prueba:
+
+| Modelo | RMSE log (CV) | R² log (prueba) | MdAPE (prueba) | MAE (prueba) |
+|---|---|---|---|---|
+| **LightGBM** | **0,305 ± 0,007** | **0,852** | **16,3 %** | **79.520 €** |
+| XGBoost | 0,305 ± 0,010 | 0,851 | 16,2 % | 79.675 € |
+| CatBoost | 0,308 ± 0,010 | 0,845 | 17,8 % | 83.579 € |
+| Random Forest | 0,326 ± 0,010 | 0,826 | 17,8 % | 85.687 € |
+| Regresión lineal | 0,384 ± 0,008 | 0,761 | 23,2 % | 104.680 € |
+
+`notebooks/02_modelado.ipynb` analiza los resultados:
+
+- **Segmentos**: el error es mayor en casas (19,0 %) que en pisos (15,1 %), y no varía apenas entre capitales y resto de municipios. La principal limitación es la regresión hacia la media: se sobrestiman las viviendas más baratas y se infravaloran las más caras (±14 % en los quintiles extremos).
+- **Variables del anuncio**: no mejoran el modelo, lo que confirma su exclusión.
+- **Explicabilidad (SHAP)**: superficie, ubicación, baños y piscina son las variables más influyentes, seguidas de las de contexto del MIVAU y el INE. El tipo de vivienda apenas contribuye por sí mismo: la diferencia entre casas y pisos se recoge a través de la parcela, el jardín o la planta.
+
+Para reproducir:
+
+```bash
+python src/preprocesado.py
+python src/modelado.py --pruebas 40
+```
+
 ## Código de referencia
 
 La primera implementación del proceso de adquisición de datos se basó en el repositorio público de Rocío Benítez:
@@ -236,7 +263,9 @@ tfm-vivienda-andalucia/
 │   ├── procesar_mivau.py
 │   ├── combinar_fotocasa.py
 │   ├── enriquecer_fotocasa.py
-│   └── limpieza.py
+│   ├── limpieza.py
+│   ├── preprocesado.py               variables y partición entrenamiento/prueba
+│   └── modelado.py                   ajuste (Optuna) y evaluación de modelos
 │
 ├── data/                             (contenido excluido del repositorio)
 │   ├── provincias/                   listados provinciales
@@ -247,10 +276,14 @@ tfm-vivienda-andalucia/
 │   └── procesado/                    salidas de src/
 │
 ├── notebooks/
-│   └── 01_analisis_exploratorio.ipynb
+│   ├── 01_analisis_exploratorio.ipynb
+│   └── 02_modelado.ipynb
 │
 ├── doc/                              memoria del TFM (LaTeX)
-│   └── figuras/eda/                  figuras del análisis exploratorio
+│   └── figuras/
+│       ├── eda/                      figuras del análisis exploratorio
+│       └── modelado/                 figuras de resultados y explicabilidad
+├── models/                           modelos entrenados (excluidos del repositorio)
 ├── .gitignore
 ├── requirements.txt
 └── README.md
@@ -439,4 +472,5 @@ Proyecto en desarrollo.
 - [x] Ampliación de la muestra de las capitales de provincia.
 - [x] Limpieza del conjunto de datos.
 - [x] Análisis exploratorio.
-- [ ] Entrenamiento, evaluación e interpretación de modelos.
+- [x] Entrenamiento, evaluación e interpretación de modelos.
+- [ ] Red neuronal multicapa (opcional).
