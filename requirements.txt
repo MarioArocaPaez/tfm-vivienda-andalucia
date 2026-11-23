@@ -20,3 +20,6 @@ catboost>=1.2
 optuna>=3.5
 shap>=0.44
 joblib
+
+# Variables geográficas adicionales (src/variables_extra.py)
+shapely>=2.0

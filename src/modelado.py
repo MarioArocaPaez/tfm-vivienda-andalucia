@@ -18,6 +18,10 @@ Uso (desde la raíz del repositorio):
     python src/modelado.py              # 30 pruebas de Optuna por modelo
     python src/modelado.py --pruebas 60
     python src/modelado.py --modelos lightgbm catboost
+    python src/modelado.py --grupos texto geo renta   # con las variables de variables_extra.py
+
+Con --grupos la salida va a data/procesado/resultados/<grupos>/ y models/<grupos>/,
+para no sobrescribir los resultados del modelo base.
 
 Salida:
     data/procesado/resultados/resultados_modelos.csv     métricas CV y prueba por modelo
@@ -178,11 +182,21 @@ def main():
     ap.add_argument("--pruebas", type=int, default=30)
     ap.add_argument("--modelos", nargs="+",
                     default=["lineal", "random_forest", "xgboost", "lightgbm", "catboost"])
+    ap.add_argument("--grupos", nargs="*", default=[], choices=["texto", "geo", "renta"],
+                    help="grupos de variables adicionales (src/variables_extra.py)")
     args = ap.parse_args()
+
+    global RESULTADOS, MODELOS_DIR
+    if args.grupos:
+        etiqueta = "_".join(args.grupos)
+        RESULTADOS = os.path.join(RESULTADOS, etiqueta)
+        MODELOS_DIR = os.path.join(MODELOS_DIR, etiqueta)
+    grupos = tuple(args.grupos)
 
     os.makedirs(RESULTADOS, exist_ok=True)
     os.makedirs(MODELOS_DIR, exist_ok=True)
-    X_train, X_test, y_train, y_test, ctx = preparar()
+    X_train, X_test, y_train, y_test, ctx = preparar(grupos=grupos)
+    print(f"Grupos adicionales: {list(grupos) or 'ninguno'} | salida: {RESULTADOS}")
     print(f"Entrenamiento {X_train.shape} | prueba {X_test.shape} | {args.pruebas} pruebas por modelo\n")
 
     filas, historial, hiper = [], [], {}
@@ -214,7 +228,7 @@ def main():
 
     # ---- Ablación: variables del anuncio, con el mejor modelo (elegido por CV) ----
     mejor = res.iloc[0]["modelo"]
-    Xa_train, Xa_test, _, _, _ = preparar(con_anuncio=True)
+    Xa_train, Xa_test, _, _, _ = preparar(con_anuncio=True, grupos=grupos)
     filas_ab = []
     for etiqueta, (Xtr, Xte) in {"sin variables del anuncio": (X_train, X_test),
                                  "con variables del anuncio": (Xa_train, Xa_test)}.items():

@@ -27,6 +27,8 @@ import numpy as np
 import pandas as pd
 from sklearn.model_selection import train_test_split
 
+import variables_extra
+
 RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PROCESADO = os.path.join(RAIZ, "data", "procesado")
 DATOS = os.path.join(PROCESADO, "fotocasa_andalucia_limpio.csv")
@@ -83,8 +85,10 @@ def generar_particion(df):
     return particion
 
 
-def preparar(con_anuncio=False, regenerar_particion=False):
+def preparar(con_anuncio=False, regenerar_particion=False, grupos=()):
     """Devuelve X_train, X_test, y_train, y_test y el DataFrame completo de prueba.
+
+    grupos: grupos de variables adicionales de variables_extra ("texto", "geo", "renta").
 
     X conserva los ausentes (NaN): cada modelo decide cómo tratarlos.
     Las categóricas se codifican one-hot con las categorías vistas en entrenamiento.
@@ -95,8 +99,10 @@ def preparar(con_anuncio=False, regenerar_particion=False):
     else:
         particion = pd.read_csv(PARTICION, dtype={"id_anuncio": str})
     df = df.merge(particion, on="id_anuncio", how="inner")
+    df = variables_extra.anadir(df, grupos)
 
     variables = VARIABLES + (VARIABLES_ANUNCIO if con_anuncio else [])
+    variables += [v for g in grupos for v in variables_extra.GRUPOS[g]]
     X = pd.get_dummies(df[variables], columns=CATEGORICAS, dtype=int)
     entreno = (df["conjunto"] == "entrenamiento").values
 

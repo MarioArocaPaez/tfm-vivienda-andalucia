@@ -84,7 +84,17 @@ Esta fuente permite complementar los precios de oferta observados en los anuncio
 
 Se utilizan las *Cifras oficiales de población de los municipios españoles: Revisión del Padrón Municipal* ([detalle municipal](https://www.ine.es/dynt3/inebase/es/index.htm?padre=525)), una tabla por provincia, con la población a 1 de enero de 2025. Además de la población, aportan el **código INE** de cada municipio, que se utiliza como clave para cruzar Fotocasa, INE y MIVAU, ya que los nombres de municipio no coinciden siempre entre fuentes.
 
-En función del avance del trabajo podrá incorporarse también información de renta u otras características socioeconómicas.
+Del *Atlas de Distribución de Renta de los Hogares* (ADRH) se toma la **renta neta media por persona** de cada municipio en 2024, el último año publicado. INEbase ofrece el detalle municipal como un único fichero nacional (tabla 30824, *Indicadores de renta media y mediana* por municipios, distritos y secciones; unos 400 MB). Se reduce a las filas municipales de Andalucía con:
+
+```bash
+python src/variables_extra.py --extraer-renta ruta/a/30824.csv
+```
+
+que genera `data/externos/ine/renta/adrh_andalucia_municipios.csv` (3 MB). El fichero original no hace falta conservarlo.
+
+### Línea de costa
+
+`data/externos/geo/costa_andalucia.geojson` contiene la línea de costa del litoral andaluz y los tramos limítrofes del Algarve y Murcia, sin la costa africana. Procede de Natural Earth (escala 1:10 millones, paquete npm `world-atlas` 2.0.2), recortada y simplificada. Se usa para calcular la distancia de cada vivienda a la costa. Al ser un fichero pequeño de dominio público, se incluye en el repositorio.
 
 ### Instituto de Estadística y Cartografía de Andalucía (IECA)
 
@@ -222,6 +232,30 @@ python src/preprocesado.py
 python src/modelado.py --pruebas 40
 ```
 
+### Variables adicionales para los extremos de precio
+
+Para corregir la regresión hacia la media, `src/variables_extra.py` define tres grupos de variables que se activan con `preparar(grupos=...)`:
+
+- **texto**: 14 indicadores extraídos del título y la descripción mediante expresiones regulares: vistas al mar, primera línea, playa, lujo, piscina desbordante, golf, spa, ático, a estrenar, reformado, a reformar, ocupada, cueva e inversión. Se eligieron analizando los residuos fuera de muestra del modelo base solo en entrenamiento.
+- **geo**: distancia a la costa y a la capital de provincia, calculadas a partir de las coordenadas.
+- **renta**: renta neta media por persona del municipio (INE, ADRH).
+
+```bash
+python src/modelado.py --pruebas 40 --grupos texto geo renta   # salida en resultados/texto_geo_renta/
+python src/ablacion_variables.py --grupos texto geo renta      # aportación de cada grupo
+```
+
+Resultados (`notebooks/03_mejora_variables.ipynb`):
+
+| LightGBM | RMSE log (CV) | R² log (prueba) | MdAPE (prueba) | MAE (prueba) |
+|---|---|---|---|---|
+| Modelo base | 0,305 | 0,852 | 16,3 % | 79.520 € |
+| **Modelo ampliado** | **0,289** | **0,863** | **15,5 %** | **76.081 €** |
+
+- Texto y geografía aportan cada uno en torno a un 3 % menos de error en validación cruzada, y sus efectos se suman. La renta municipal no aporta, porque es redundante con el contexto municipal que ya tenía el modelo.
+- La distancia a la costa es la sexta variable más importante: estar a menos de 1 km supone en torno a un +18 % de precio.
+- El error baja en todos los tramos de precio, pero el sesgo de los extremos (±13 %) apenas cambia. Depende de información que el anuncio no describe, como calidades o reformas.
+
 ## Código de referencia
 
 La primera implementación del proceso de adquisición de datos se basó en el repositorio público de Rocío Benítez:
@@ -265,24 +299,29 @@ tfm-vivienda-andalucia/
 │   ├── enriquecer_fotocasa.py
 │   ├── limpieza.py
 │   ├── preprocesado.py               variables y partición entrenamiento/prueba
-│   └── modelado.py                   ajuste (Optuna) y evaluación de modelos
+│   ├── variables_extra.py            variables de texto, geografía y renta
+│   ├── modelado.py                   ajuste (Optuna) y evaluación de modelos
+│   └── ablacion_variables.py         aportación de cada grupo de variables
 │
 ├── data/                             (contenido excluido del repositorio)
 │   ├── provincias/                   listados provinciales
 │   ├── capitales/                    extracción de capitales
 │   ├── externos/
 │   │   ├── mivau/                    Excel descargados del MIVAU
-│   │   └── ine/                      Excel descargados del INE
+│   │   ├── ine/                      Excel descargados del INE (renta/: ADRH)
+│   │   └── geo/                      línea de costa (sí se versiona)
 │   └── procesado/                    salidas de src/
 │
 ├── notebooks/
 │   ├── 01_analisis_exploratorio.ipynb
-│   └── 02_modelado.ipynb
+│   ├── 02_modelado.ipynb
+│   └── 03_mejora_variables.ipynb
 │
 ├── doc/                              memoria del TFM (LaTeX)
 │   └── figuras/
 │       ├── eda/                      figuras del análisis exploratorio
-│       └── modelado/                 figuras de resultados y explicabilidad
+│       ├── modelado/                 figuras de resultados y explicabilidad
+│       └── mejora/                   figuras del modelo ampliado
 ├── models/                           modelos entrenados (excluidos del repositorio)
 ├── .gitignore
 ├── requirements.txt
@@ -473,4 +512,5 @@ Proyecto en desarrollo.
 - [x] Limpieza del conjunto de datos.
 - [x] Análisis exploratorio.
 - [x] Entrenamiento, evaluación e interpretación de modelos.
+- [x] Variables adicionales (texto, geografía, renta) y ablación.
 - [ ] Red neuronal multicapa (opcional).
