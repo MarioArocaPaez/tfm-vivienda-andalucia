@@ -256,6 +256,23 @@ Resultados (`notebooks/03_mejora_variables.ipynb`):
 - La distancia a la costa es la sexta variable más importante: estar a menos de 1 km supone en torno a un +18 % de precio.
 - El error baja en todos los tramos de precio, pero el sesgo de los extremos (±13 %) apenas cambia. Depende de información que el anuncio no describe, como calidades o reformas.
 
+### Redes neuronales
+
+`src/redes_neuronales.py` evalúa dos usos de redes neuronales sobre el modelo ampliado:
+
+- **MLP** con las mismas variables. No supera a LightGBM: RMSE log en validación cruzada de 0,320 frente a 0,289. Combinarlo con LightGBM tampoco aporta, porque sus errores están correlados en un 0,85.
+- **Corrección por texto.** Un modelo de lenguaje multilingüe (`multilingual-e5-small`) convierte el título y la descripción en un vector de 384 dimensiones (`src/embeddings_texto.py`). A partir de ese vector, una regresión ridge predice el error de LightGBM y lo corrige. Mejora en las 5 particiones de validación cruzada y en prueba, y reduce el sesgo de las viviendas caras de −13,2 % a −10,5 %.
+
+```bash
+python -m pip install sentence-transformers   # solo para calcular los embeddings
+python src/embeddings_texto.py                # una vez, ~10 min en CPU
+python src/redes_neuronales.py                # ~3 min
+```
+
+| Modelo final (prueba) | RMSE log (CV) | R² log | MdAPE | MAE |
+|---|---|---|---|---|
+| LightGBM ampliado + corrección por texto | 0,285 | 0,867 | 15,2 % | 74.754 € |
+
 ## Código de referencia
 
 La primera implementación del proceso de adquisición de datos se basó en el repositorio público de Rocío Benítez:
@@ -301,7 +318,9 @@ tfm-vivienda-andalucia/
 │   ├── preprocesado.py               variables y partición entrenamiento/prueba
 │   ├── variables_extra.py            variables de texto, geografía y renta
 │   ├── modelado.py                   ajuste (Optuna) y evaluación de modelos
-│   └── ablacion_variables.py         aportación de cada grupo de variables
+│   ├── ablacion_variables.py         aportación de cada grupo de variables
+│   ├── embeddings_texto.py           representación del texto con un modelo de lenguaje
+│   └── redes_neuronales.py           MLP y corrección por texto
 │
 ├── data/                             (contenido excluido del repositorio)
 │   ├── provincias/                   listados provinciales
@@ -513,4 +532,5 @@ Proyecto en desarrollo.
 - [x] Análisis exploratorio.
 - [x] Entrenamiento, evaluación e interpretación de modelos.
 - [x] Variables adicionales (texto, geografía, renta) y ablación.
+- [x] Redes neuronales: MLP y corrección por texto con un modelo de lenguaje.
 - [ ] Red neuronal multicapa (opcional).

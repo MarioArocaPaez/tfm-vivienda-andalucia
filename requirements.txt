@@ -23,3 +23,6 @@ joblib
 
 # Variables geográficas adicionales (src/variables_extra.py)
 shapely>=2.0
+
+# Opcional: embeddings del texto (src/embeddings_texto.py)
+sentence-transformers

@@ -54,3 +54,6 @@ desktop.ini
 
 # Modelos entrenados (se regeneran con src/modelado.py)
 models/
+
+# Embeddings del texto (se regeneran con src/embeddings_texto.py)
+data/**/*.npz
