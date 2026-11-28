@@ -1,5 +1,18 @@
 # Predicción de precios de vivienda en Andalucía mediante aprendizaje automático
 
+[![TFM](https://img.shields.io/badge/TFM-UOC%20%C2%B7%20M%C3%A1ster%20en%20Ciencia%20de%20Datos-0072CE)](https://www.uoc.edu)
+![Estado](https://img.shields.io/badge/estado-en%20desarrollo-orange)
+
+![Python](https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white)
+![scikit-learn](https://img.shields.io/badge/scikit--learn-F7931E?logo=scikitlearn&logoColor=white)
+![LightGBM](https://img.shields.io/badge/LightGBM-2E7D32)
+![XGBoost](https://img.shields.io/badge/XGBoost-2E7D32)
+![CatBoost](https://img.shields.io/badge/CatBoost-2E7D32)
+![Optuna](https://img.shields.io/badge/Optuna-4A6FA5)
+![SHAP](https://img.shields.io/badge/SHAP-4A6FA5)
+![Jupyter](https://img.shields.io/badge/Jupyter-F37626?logo=jupyter&logoColor=white)
+![Selenium](https://img.shields.io/badge/Selenium-43B02A?logo=selenium&logoColor=white)
+
 ## Descripción
 
 Este repositorio contiene el código desarrollado para el Trabajo Fin de Máster (TFM) del Máster Universitario en Ciencia de Datos de la Universitat Oberta de Catalunya (UOC).
