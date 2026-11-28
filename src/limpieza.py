@@ -23,6 +23,8 @@ import os
 import re
 import sys
 
+import unicodedata
+
 import numpy as np
 import pandas as pd
 
@@ -44,6 +46,13 @@ UMBRALES = {
 
 # Situaciones en las que el precio no refleja el mercado libre de compraventa.
 DISPONIBILIDAD_EXCLUIDA = {"Subasta", "Nuda propiedad", "Ocupado"}
+
+# La misma situación cuando solo consta en el texto del anuncio (Fotocasa no la
+# marca en el campo de disponibilidad). Se busca en título + descripción en
+# minúsculas y sin tildes. Revisadas a mano las coincidencias: no hay negaciones
+# del tipo "no está ocupada".
+PATRON_OCUPADA = (r"\bokupa|ocupad[ao]s? ilegal|sin posesion|vivienda ocupada|inmueble ocupado"
+                  r"|esta ocupad")
 
 CAPITALES = {"Almería", "Cádiz", "Córdoba", "Granada", "Huelva", "Jaén", "Málaga", "Sevilla"}
 
@@ -170,6 +179,12 @@ def construir_variables(df):
 # Reglas de filtrado (se aplican en este orden)
 # ------------------------------------------------------------------
 
+def texto_normalizado(df):
+    texto = (df["titulo"].fillna("") + " " + df["descripcion"].fillna("")).str.lower()
+    return texto.map(lambda s: "".join(c for c in unicodedata.normalize("NFKD", s)
+                                       if not unicodedata.combining(c)))
+
+
 def clave_duplicado(df):
     desc = df["descripcion"].fillna("").str.lower().str.replace(r"\s+", " ", regex=True).str[:200]
     campos = df[["municipio", "precio_eur", "superficie_m2", "habitaciones", "banos"]].apply(lambda c: c.map(str))
@@ -190,6 +205,10 @@ REGLAS = [
     ("disponibilidad no de mercado",
      f"Precio no comparable: {', '.join(sorted(DISPONIBILIDAD_EXCLUIDA))}.",
      lambda d: ~d["disponibilidad"].isin(DISPONIBILIDAD_EXCLUIDA)),
+    ("ocupada según el texto",
+     "Vivienda ocupada o sin posesión que solo se indica en la descripción; mismo criterio "
+     "que la regla anterior.",
+     lambda d: ~texto_normalizado(d).str.contains(PATRON_OCUPADA, regex=True)),
     ("sin precio o superficie",
      "Faltan la variable objetivo o la superficie.",
      lambda d: d["precio_eur"].notna() & d["superficie_m2"].notna()),

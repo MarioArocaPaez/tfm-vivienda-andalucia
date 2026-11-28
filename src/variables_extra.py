@@ -9,6 +9,8 @@ reformar en el interior. Este módulo añade tres grupos de variables:
 
 1. "texto": indicadores binarios extraídos del título y la descripción con
    expresiones regulares (vistas al mar, primera línea, a reformar, lujo...).
+   Las viviendas ocupadas o sin posesión que solo se detectan por el texto se
+   eliminan en la limpieza (src/limpieza.py), igual que las marcadas en los campos.
    Los términos se eligieron explorando los residuos fuera de muestra (OOF) del
    modelo base SOLO en el conjunto de entrenamiento; el de prueba no se miró.
 2. "geo": distancia a la costa y a la capital de provincia, calculadas desde las
@@ -49,7 +51,6 @@ PATRONES_TEXTO = {
     "txt_a_estrenar": r"a estrenar",
     "txt_reformado": r"reformad[oa]|recien reformad",
     "txt_a_reformar": r"a reformar|para reformar|necesita reforma|reforma integral|para rehabilitar|a rehabilitar",
-    "txt_ocupada": r"\bokupa|ocupad[ao]s? ilegal|sin posesion|vivienda ocupada|inmueble ocupado|esta ocupad",
     "txt_cueva": r"\bcueva",
     "txt_inversion": r"inversion|inversores|rentabilidad",
 }
@@ -147,7 +148,10 @@ def cargar_renta(directorio=DIR_RENTA):
             # INEbase exporta con ";" o tabulador, en UTF-8 o Latin-1 según la opción elegida
             for codificacion in ("utf-8-sig", "latin-1"):
                 try:
-                    t = pd.read_csv(ruta, sep=None, engine="python", dtype=str, encoding=codificacion)
+                    with open(ruta, encoding=codificacion) as f:
+                        cabecera = f.readline()
+                    sep = ";" if cabecera.count(";") >= cabecera.count("\t") else "\t"
+                    t = pd.read_csv(ruta, sep=sep, dtype=str, encoding=codificacion)
                     break
                 except UnicodeDecodeError:
                     continue
@@ -175,6 +179,20 @@ def cargar_renta(directorio=DIR_RENTA):
     return renta.set_index("cod_ine")["valor"].rename("renta_neta_persona"), int(ultimo)
 
 
+PROVINCIAS_ANDALUCIA = ("04", "11", "14", "18", "21", "23", "29", "41")
+
+
+def extraer_andalucia(ruta_nacional, destino=os.path.join(DIR_RENTA, "adrh_andalucia_municipios.csv")):
+    """Reduce el fichero nacional del ADRH (tabla 30824, ~400 MB) a las filas de
+    ámbito municipal de Andalucía, con el mismo formato, para no guardar el original."""
+    t = pd.read_csv(ruta_nacional, sep=";", dtype=str, encoding="utf-8-sig")
+    municipal = t["Distritos"].isna() & t["Secciones"].isna()
+    andalucia = t["Municipios"].str[:2].isin(PROVINCIAS_ANDALUCIA)
+    os.makedirs(os.path.dirname(destino), exist_ok=True)
+    t[municipal & andalucia].to_csv(destino, sep=";", index=False, encoding="utf-8-sig")
+    return destino
+
+
 def variables_renta(df):
     renta, _ = cargar_renta()
     cod = pd.to_numeric(df["cod_ine"], errors="coerce")
@@ -193,6 +211,11 @@ def anadir(df, grupos):
 
 
 if __name__ == "__main__":
+    import sys
+    if len(sys.argv) == 3 and sys.argv[1] == "--extraer-renta":
+        # python src/variables_extra.py --extraer-renta ruta/30824.csv
+        print("Extracto guardado en", extraer_andalucia(sys.argv[2]))
+        sys.exit()
     from preprocesado import cargar_datos
     df = cargar_datos()
     print((variables_texto(df).mean() * 100).round(1).to_string())

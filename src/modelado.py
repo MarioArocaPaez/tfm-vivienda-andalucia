@@ -71,18 +71,71 @@ optuna.logging.set_verbosity(optuna.logging.WARNING)
 # ----------------------------------------------------------------------
 
 def metricas(y_log, pred_log):
-    """Métricas en euros (y R² también en escala logarítmica)."""
-    y, p = np.exp(y_log), np.exp(pred_log)
+    """Métricas de evaluación, todas en la escala original (euros).
+
+    El modelo se entrena sobre log(precio); la predicción se devuelve a euros con
+    exp(), que estima la mediana del precio condicionada a las variables.
+    """
+    y, p = np.exp(np.asarray(y_log)), np.exp(np.asarray(pred_log))
     ape = np.abs(p - y) / y
     return {
-        "MAE_eur": mean_absolute_error(y, p),
+        "MAE_eur": float(mean_absolute_error(y, p)),
         "RMSE_eur": float(np.sqrt(mean_squared_error(y, p))),
         "MAPE_pct": float(ape.mean() * 100),
         "MdAPE_pct": float(np.median(ape) * 100),
-        "R2_eur": r2_score(y, p),
-        "R2_log": r2_score(y_log, pred_log),
-        "RMSE_log": float(np.sqrt(mean_squared_error(y_log, pred_log))),
+        "R2_eur": float(r2_score(y, p)),
     }
+
+
+def metricas_cv(y, pred):
+    """Media y desviación entre particiones de las métricas en euros, a partir de
+    las predicciones fuera de muestra (log) de la validación cruzada."""
+    por_particion = pd.DataFrame([metricas(y.iloc[te], pred[te]) for _, te in CV.split(y)])
+    salida = {f"CV_{k}": v for k, v in por_particion.mean().items()}
+    salida.update({f"CV_{k}_desv": v for k, v in por_particion.std(ddof=0).items()})
+    return salida
+
+
+class _TrialRegistro:
+    """Imita un trial de Optuna para leer el espacio de búsqueda definido en espacio()."""
+
+    def __init__(self):
+        self.filas = []
+
+    def _anotar(self, nombre, tipo, valor, **info):
+        self.filas.append(dict(parametro=nombre, tipo=tipo, **info))
+        return valor
+
+    def suggest_int(self, nombre, bajo, alto, step=1, log=False):
+        return self._anotar(nombre, "entero", bajo, minimo=bajo, maximo=alto, paso=step,
+                            escala="log" if log else "lineal")
+
+    def suggest_float(self, nombre, bajo, alto, log=False):
+        return self._anotar(nombre, "real", bajo, minimo=bajo, maximo=alto, escala="log" if log else "lineal")
+
+    def suggest_categorical(self, nombre, opciones):
+        return self._anotar(nombre, "categórico", opciones[0], valores=", ".join(map(str, opciones)))
+
+
+def espacios_busqueda(modelos=("random_forest", "xgboost", "lightgbm", "catboost")):
+    """Tabla con los hiperparámetros ajustados por Optuna y su rango para cada modelo."""
+    filas = []
+    for nombre in modelos:
+        t = _TrialRegistro()
+        fijos = espacio(nombre, t)
+        filas += [dict(modelo=nombre, **f) for f in t.filas]
+        ajustados = {f["parametro"] for f in t.filas}
+        filas += [dict(modelo=nombre, parametro=k, tipo="fijo", valores=str(v))
+                  for k, v in fijos.items() if k not in ajustados]
+    return pd.DataFrame(filas)
+
+
+def evaluar_cv(modelo, X, y):
+    """Criterio de ajuste (RMSE de log) y métricas en euros en validación cruzada."""
+    pred = cross_val_predict(modelo, X, y, cv=CV)
+    rmse_log = [np.sqrt(mean_squared_error(y.iloc[te], pred[te])) for _, te in CV.split(X)]
+    return {"CV_RMSE_log": float(np.mean(rmse_log)), "CV_RMSE_log_desv": float(np.std(rmse_log)),
+            **metricas_cv(y, pred)}
 
 
 # ----------------------------------------------------------------------
@@ -109,7 +162,7 @@ def espacio(nombre, t):
     if nombre == "random_forest":
         return dict(
             n_estimators=t.suggest_int("n_estimators", 200, 700, step=100),
-            max_features=t.suggest_float("max_features", 0.2, 1.0),
+            max_features=t.suggest_float("max_features", 0.1, 1.0),
             min_samples_leaf=t.suggest_int("min_samples_leaf", 1, 10),
             max_depth=t.suggest_categorical("max_depth", [None, 15, 25, 40]),
         )
@@ -120,7 +173,7 @@ def espacio(nombre, t):
             max_depth=t.suggest_int("max_depth", 3, 10),
             min_child_weight=t.suggest_float("min_child_weight", 1, 20, log=True),
             subsample=t.suggest_float("subsample", 0.6, 1.0),
-            colsample_bytree=t.suggest_float("colsample_bytree", 0.4, 1.0),
+            colsample_bytree=t.suggest_float("colsample_bytree", 0.2, 1.0),
             reg_lambda=t.suggest_float("reg_lambda", 1e-3, 10, log=True),
             reg_alpha=t.suggest_float("reg_alpha", 1e-3, 10, log=True),
         )
@@ -132,15 +185,15 @@ def espacio(nombre, t):
             min_child_samples=t.suggest_int("min_child_samples", 5, 80),
             subsample=t.suggest_float("subsample", 0.6, 1.0),
             subsample_freq=1,
-            colsample_bytree=t.suggest_float("colsample_bytree", 0.4, 1.0),
+            colsample_bytree=t.suggest_float("colsample_bytree", 0.2, 1.0),
             reg_lambda=t.suggest_float("reg_lambda", 1e-3, 10, log=True),
             reg_alpha=t.suggest_float("reg_alpha", 1e-3, 10, log=True),
         )
     if nombre == "catboost":
         return dict(
-            iterations=t.suggest_int("iterations", 300, 1200, step=100),
+            iterations=t.suggest_int("iterations", 300, 2000, step=100),
             learning_rate=t.suggest_float("learning_rate", 0.02, 0.2, log=True),
-            depth=t.suggest_int("depth", 4, 8),
+            depth=t.suggest_int("depth", 4, 10),
             l2_leaf_reg=t.suggest_float("l2_leaf_reg", 1, 20, log=True),
             bagging_temperature=t.suggest_float("bagging_temperature", 0, 1),
         )
@@ -159,7 +212,7 @@ def rmse_cv(modelo, X, y):
 
 def ajustar(nombre, X, y, pruebas, historial):
     if nombre == "lineal":
-        return {}, *rmse_cv(construir(nombre, {}), X, y)
+        return {}, evaluar_cv(construir(nombre, {}), X, y)
 
     def objetivo(t):
         return rmse_cv(construir(nombre, espacio(nombre, t)), X, y)[0]
@@ -173,8 +226,7 @@ def ajustar(nombre, X, y, pruebas, historial):
     mejores = dict(estudio.best_params)
     if nombre == "lightgbm":
         mejores["subsample_freq"] = 1
-    media, desv = rmse_cv(construir(nombre, mejores), X, y)
-    return mejores, media, desv
+    return mejores, evaluar_cv(construir(nombre, mejores), X, y)
 
 
 def main():
@@ -204,24 +256,25 @@ def main():
                         "precio_eur", "superficie_m2"]].copy()
     for nombre in args.modelos:
         t0 = time.time()
-        mejores, cv_media, cv_desv = ajustar(nombre, X_train, y_train, args.pruebas, historial)
+        mejores, cv = ajustar(nombre, X_train, y_train, args.pruebas, historial)
         modelo = construir(nombre, mejores).fit(X_train, y_train)
         pred = modelo.predict(X_test)
         m = metricas(y_test.values, pred)
-        filas.append(dict(modelo=nombre, CV_RMSE_log=cv_media, CV_RMSE_log_desv=cv_desv,
-                          **{f"test_{k}": v for k, v in m.items()}, minutos=(time.time() - t0) / 60))
+        filas.append(dict(modelo=nombre, **cv, **{f"test_{k}": v for k, v in m.items()},
+                          minutos=(time.time() - t0) / 60))
         predicciones[f"pred_{nombre}"] = np.exp(pred)
         hiper[nombre] = mejores
         joblib.dump(modelo, os.path.join(MODELOS_DIR, f"{nombre}.joblib"))
-        print(f"{nombre:14s} CV RMSE(log) {cv_media:.4f} ± {cv_desv:.4f} | prueba: MAPE {m['MAPE_pct']:.1f} % "
-              f"MdAPE {m['MdAPE_pct']:.1f} % MAE {m['MAE_eur']:,.0f} € R²(log) {m['R2_log']:.3f} "
-              f"| {(time.time() - t0) / 60:.1f} min", flush=True)
+        print(f"{nombre:14s} CV: MAE {cv['CV_MAE_eur']:,.0f} € R² {cv['CV_R2_eur']:.3f} "
+              f"(RMSE log {cv['CV_RMSE_log']:.4f}) | prueba: MAE {m['MAE_eur']:,.0f} € RMSE {m['RMSE_eur']:,.0f} € "
+              f"MdAPE {m['MdAPE_pct']:.1f} % R² {m['R2_eur']:.3f} | {(time.time() - t0) / 60:.1f} min", flush=True)
 
     res = pd.DataFrame(filas).sort_values("CV_RMSE_log")
     res.to_csv(os.path.join(RESULTADOS, "resultados_modelos.csv"), index=False, encoding="utf-8-sig")
     predicciones.to_csv(os.path.join(RESULTADOS, "predicciones_prueba.csv"), index=False, encoding="utf-8-sig")
     with open(os.path.join(RESULTADOS, "hiperparametros.json"), "w", encoding="utf-8") as f:
         json.dump(hiper, f, indent=2, ensure_ascii=False)
+    espacios_busqueda().to_csv(os.path.join(RESULTADOS, "espacios_busqueda.csv"), index=False, encoding="utf-8-sig")
     if historial:
         pd.concat(historial).to_csv(os.path.join(RESULTADOS, "historial_optuna.csv"),
                                     index=False, encoding="utf-8-sig")
@@ -232,18 +285,19 @@ def main():
     filas_ab = []
     for etiqueta, (Xtr, Xte) in {"sin variables del anuncio": (X_train, X_test),
                                  "con variables del anuncio": (Xa_train, Xa_test)}.items():
-        cv_media, cv_desv = rmse_cv(construir(mejor, hiper[mejor]), Xtr, y_train)
+        cv = evaluar_cv(construir(mejor, hiper[mejor]), Xtr, y_train)
         pred = construir(mejor, hiper[mejor]).fit(Xtr, y_train).predict(Xte)
-        filas_ab.append(dict(modelo=mejor, variante=etiqueta, CV_RMSE_log=cv_media, CV_RMSE_log_desv=cv_desv,
+        filas_ab.append(dict(modelo=mejor, variante=etiqueta, **cv,
                              **{f"test_{k}": v for k, v in metricas(y_test.values, pred).items()}))
     ab = pd.DataFrame(filas_ab)
     ab.to_csv(os.path.join(RESULTADOS, "ablacion_anuncio.csv"), index=False, encoding="utf-8-sig")
 
     print("\nMejor modelo (CV):", mejor)
-    print(res[["modelo", "CV_RMSE_log", "test_MAPE_pct", "test_MdAPE_pct", "test_MAE_eur", "test_R2_log"]]
-          .round(4).to_string(index=False))
+    columnas = ["CV_MAE_eur", "CV_R2_eur", "test_MAE_eur", "test_RMSE_eur", "test_MAPE_pct", "test_MdAPE_pct",
+                "test_R2_eur"]
+    print(res[["modelo", *columnas]].round(3).to_string(index=False))
     print("\nAblación:")
-    print(ab[["variante", "CV_RMSE_log", "test_MAPE_pct", "test_MdAPE_pct", "test_R2_log"]].round(4).to_string(index=False))
+    print(ab[["variante", *columnas]].round(3).to_string(index=False))
 
 
 if __name__ == "__main__":

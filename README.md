@@ -179,12 +179,15 @@ Algunas decisiones de integración:
 | 2 | Municipio identificado (código INE) | Elimina un pseudo-municipio de navegación del portal |
 | 3 | Sin fincas rústicas | Superficies y precios no comparables con vivienda urbana |
 | 4 | Sin subastas, nudas propiedades ni viviendas ocupadas | El precio no refleja el mercado libre |
-| 5 | Con precio y superficie | Variable objetivo y principal predictora |
-| 6 | Precio entre 20.000 € y 5.000.000 € | Errores de precio y casos singulares |
-| 7 | Superficie entre 15 y 1.500 m² | Superficies imposibles o de parcela |
-| 8 | Precio por m² entre 200 y 20.000 € | Incoherencias entre precio y superficie |
-| 9 | Hasta 15 habitaciones y 10 baños | Valores imposibles |
-| 10 | Sin duplicados | Misma vivienda publicada varias veces (mismas características y descripción) |
+| 5 | Sin viviendas ocupadas o sin posesión según el texto del anuncio | Mismo criterio que la regla 4, cuando la situación solo consta en la descripción |
+| 6 | Con precio y superficie | Variable objetivo y principal predictora |
+| 7 | Precio entre 20.000 € y 5.000.000 € | Errores de precio y casos singulares |
+| 8 | Superficie entre 15 y 1.500 m² | Superficies imposibles o de parcela |
+| 9 | Precio por m² entre 200 y 20.000 € | Incoherencias entre precio y superficie |
+| 10 | Hasta 15 habitaciones y 10 baños | Valores imposibles |
+| 11 | Sin duplicados | Misma vivienda publicada varias veces (mismas características y descripción) |
+
+El resultado son 6.763 viviendas.
 
 Además, normaliza las variables:
 
@@ -207,23 +210,31 @@ Las columnas `precio_m2` y `bajada_precio_eur` se conservan como informativas, p
 
 ## Modelado
 
-`src/preprocesado.py` fija las variables del modelo y una partición entrenamiento/prueba 80/20 estratificada por provincia (`data/procesado/particion.csv`). La variable objetivo es `log_precio`. Las variables que describen el anuncio y no la vivienda (número de fotos, longitud de la descripción, bajada de precio) se excluyen del modelo principal y se evalúan aparte.
+`src/preprocesado.py` fija las variables del modelo y una partición entrenamiento/prueba 80/20 estratificada por provincia (`data/procesado/particion.csv`): 5.401 viviendas de entrenamiento y 1.362 de prueba. La variable objetivo es `log_precio`. Las variables que describen el anuncio y no la vivienda (número de fotos, longitud de la descripción, bajada de precio) se excluyen del modelo principal y se evalúan aparte.
 
-`src/modelado.py` ajusta los hiperparámetros de cada modelo con Optuna (40 pruebas, validación cruzada de 5 particiones sobre entrenamiento) y evalúa el modelo final una única vez sobre prueba:
+`src/modelado.py` ajusta los hiperparámetros de cada modelo con Optuna y evalúa el modelo final una única vez sobre prueba:
 
-| Modelo | RMSE log (CV) | R² log (prueba) | MdAPE (prueba) | MAE (prueba) |
-|---|---|---|---|---|
-| **LightGBM** | **0,305 ± 0,007** | **0,852** | **16,3 %** | **79.520 €** |
-| XGBoost | 0,305 ± 0,010 | 0,851 | 16,2 % | 79.675 € |
-| CatBoost | 0,308 ± 0,010 | 0,845 | 17,8 % | 83.579 € |
-| Random Forest | 0,326 ± 0,010 | 0,826 | 17,8 % | 85.687 € |
-| Regresión lineal | 0,384 ± 0,008 | 0,761 | 23,2 % | 104.680 € |
+- **Búsqueda:** muestreador TPE, 40 pruebas por modelo, validación cruzada de 5 particiones sobre entrenamiento.
+- **Criterio de ajuste y selección:** RMSE de log(precio), que es la función de pérdida con la que se entrenan los modelos.
+- **Métricas reportadas:** todas en la escala original (euros), tras revertir la transformación logarítmica: MAE, RMSE, MAPE, MdAPE y R². Se calculan tanto en validación cruzada como en prueba.
+- **Rangos de búsqueda:** cada ejecución los guarda en `resultados/espacios_busqueda.csv`, generados del propio código. El notebook 02 los muestra junto al valor elegido para cada modelo.
+
+| Modelo | MAE (CV) | R² (CV) | MAE (prueba) | RMSE (prueba) | MdAPE (prueba) | R² (prueba) |
+|---|---|---|---|---|---|---|
+| **LightGBM** | **78.091 €** | **0,752** | **81.199 €** | **180.857 €** | **16,4 %** | **0,738** |
+| XGBoost | 78.642 € | 0,743 | 79.169 € | 177.459 € | 16,3 % | 0,748 |
+| CatBoost | 78.863 € | 0,752 | 82.957 € | 182.761 € | 16,9 % | 0,732 |
+| Random Forest | 83.405 € | 0,714 | 85.821 € | 195.224 € | 17,6 % | 0,695 |
+| Regresión lineal | 101.042 € | 0,644 | 104.681 € | 220.438 € | 23,0 % | 0,611 |
+
+Los tres modelos de *boosting* están prácticamente empatados. LightGBM se selecciona por tener el menor error en validación cruzada. El R² en euros es moderado porque lo dominan las pocas viviendas de más de un millón de euros; por eso se acompaña de métricas relativas (MdAPE).
 
 `notebooks/02_modelado.ipynb` analiza los resultados:
 
-- **Segmentos**: el error es mayor en casas (19,0 %) que en pisos (15,1 %), y no varía apenas entre capitales y resto de municipios. La principal limitación es la regresión hacia la media: se sobrestiman las viviendas más baratas y se infravaloran las más caras (±14 % en los quintiles extremos).
-- **Variables del anuncio**: no mejoran el modelo, lo que confirma su exclusión.
-- **Explicabilidad (SHAP)**: superficie, ubicación, baños y piscina son las variables más influyentes, seguidas de las de contexto del MIVAU y el INE. El tipo de vivienda apenas contribuye por sí mismo: la diferencia entre casas y pisos se recoge a través de la parcela, el jardín o la planta.
+- **Hiperparámetros:** tabla de rangos y valores elegidos, y convergencia de Optuna. Los valores que quedan en el borde de su rango son límites naturales, como regularización nula o `min_samples_leaf = 1`.
+- **Segmentos:** el error es mayor en casas (19,9 %) que en pisos (14,5 %), y apenas varía entre capitales y resto de municipios. La principal limitación es la regresión hacia la media: se sobrestiman las viviendas más baratas (+16 %) y se infravaloran las más caras (−15 %).
+- **Variables del anuncio:** no mejoran el modelo, lo que confirma su exclusión.
+- **Explicabilidad (SHAP):** la superficie, los baños, la ubicación, el valor medio del MIVAU, la piscina y el garaje son las variables más influyentes. El tipo de vivienda apenas contribuye por sí mismo: la diferencia entre casas y pisos se recoge a través de la parcela, el jardín o la localización.
 
 Para reproducir:
 
@@ -236,32 +247,21 @@ python src/modelado.py --pruebas 40
 
 Para corregir la regresión hacia la media, `src/variables_extra.py` define tres grupos de variables que se activan con `preparar(grupos=...)`:
 
-- **texto**: 14 indicadores extraídos del título y la descripción mediante expresiones regulares: vistas al mar, primera línea, playa, lujo, piscina desbordante, golf, spa, ático, a estrenar, reformado, a reformar, ocupada, cueva e inversión. Se eligieron analizando los residuos fuera de muestra del modelo base solo en entrenamiento.
-- **geo**: distancia a la costa y a la capital de provincia, calculadas a partir de las coordenadas.
-- **renta**: renta neta media por persona del municipio (INE, ADRH).
+- **texto:** 13 indicadores extraídos del título y la descripción mediante expresiones regulares: vistas al mar, primera línea, playa, lujo, piscina desbordante, golf, spa, ático, a estrenar, reformado, a reformar, cueva e inversión. Se eligieron analizando los residuos fuera de muestra del modelo base, solo en entrenamiento.
+- **geo:** distancia a la costa y a la capital de provincia, calculadas a partir de las coordenadas.
+- **renta:** renta neta media por persona del municipio (INE, ADRH).
 
 ```bash
 python src/modelado.py --pruebas 40 --grupos texto geo renta   # salida en resultados/texto_geo_renta/
 python src/ablacion_variables.py --grupos texto geo renta      # aportación de cada grupo
 ```
 
-Resultados (`notebooks/03_mejora_variables.ipynb`):
-
-| LightGBM | RMSE log (CV) | R² log (prueba) | MdAPE (prueba) | MAE (prueba) |
-|---|---|---|---|---|
-| Modelo base | 0,305 | 0,852 | 16,3 % | 79.520 € |
-| **Modelo ampliado** | **0,289** | **0,863** | **15,5 %** | **76.081 €** |
-
-- Texto y geografía aportan cada uno en torno a un 3 % menos de error en validación cruzada, y sus efectos se suman. La renta municipal no aporta, porque es redundante con el contexto municipal que ya tenía el modelo.
-- La distancia a la costa es la sexta variable más importante: estar a menos de 1 km supone en torno a un +18 % de precio.
-- El error baja en todos los tramos de precio, pero el sesgo de los extremos (±13 %) apenas cambia. Depende de información que el anuncio no describe, como calidades o reformas.
-
 ### Redes neuronales
 
-`src/redes_neuronales.py` evalúa dos usos de redes neuronales sobre el modelo ampliado:
+`src/redes_neuronales.py` evalúa dos usos de redes neuronales sobre el mejor modelo ampliado:
 
-- **MLP** con las mismas variables. No supera a LightGBM: RMSE log en validación cruzada de 0,320 frente a 0,289. Combinarlo con LightGBM tampoco aporta, porque sus errores están correlados en un 0,85.
-- **Corrección por texto.** Un modelo de lenguaje multilingüe (`multilingual-e5-small`) convierte el título y la descripción en un vector de 384 dimensiones (`src/embeddings_texto.py`). A partir de ese vector, una regresión ridge predice el error de LightGBM y lo corrige. Mejora en las 5 particiones de validación cruzada y en prueba, y reduce el sesgo de las viviendas caras de −13,2 % a −10,5 %.
+- **MLP** con las mismas variables. No supera a LightGBM (MAE en validación cruzada de 83.621 € frente a 72.296 €), y combinarlo con LightGBM tampoco aporta, porque sus errores están correlados en un 0,85.
+- **Corrección por texto.** Un modelo de lenguaje multilingüe (`multilingual-e5-small`) convierte el título y la descripción en un vector de 384 dimensiones (`src/embeddings_texto.py`). A partir de ese vector, una regresión ridge predice el error del modelo tabular y lo corrige. Mejora en las 5 particiones de validación cruzada y, sobre todo, en las viviendas caras.
 
 ```bash
 python -m pip install sentence-transformers   # solo para calcular los embeddings
@@ -269,9 +269,20 @@ python src/embeddings_texto.py                # una vez, ~10 min en CPU
 python src/redes_neuronales.py                # ~3 min
 ```
 
-| Modelo final (prueba) | RMSE log (CV) | R² log | MdAPE | MAE |
-|---|---|---|---|---|
-| LightGBM ampliado + corrección por texto | 0,285 | 0,867 | 15,2 % | 74.754 € |
+### Resultados de la mejora
+
+`notebooks/03_mejora_variables.ipynb` reúne la comparación, la ablación y las redes neuronales:
+
+| LightGBM | MAE (CV) | R² (CV) | MAE (prueba) | RMSE (prueba) | MdAPE (prueba) | R² (prueba) |
+|---|---|---|---|---|---|---|
+| Modelo base | 78.091 € | 0,752 | 81.199 € | 180.857 € | 16,4 % | 0,738 |
+| Modelo ampliado | 72.296 € | 0,783 | 74.836 € | 173.765 € | 14,7 % | 0,758 |
+| **Ampliado + corrección por texto (final)** | **71.551 €** | **0,797** | **73.322 €** | **165.888 €** | **15,1 %** | **0,780** |
+
+- **Por grupo de variables:** geografía y texto reducen el MAE de validación cruzada en torno a un 4 % y un 3 % respectivamente, y sus efectos se suman. La renta municipal aporta poco (≈1 %), porque es en gran parte redundante con el contexto municipal que ya tenía el modelo.
+- **Distancia a la costa:** es la cuarta variable más importante. Estar a menos de 1 km supone en torno a un +17 % de precio.
+- **Corrección por texto:** mejora sobre todo las viviendas caras, cuyo sesgo pasa de −13,6 % a −11,1 %. En los tramos centrales la MdAPE empeora ligeramente.
+- **Limitación que persiste:** la regresión hacia la media se reduce, pero sigue siendo notable (en torno a ±12 % en los extremos). Depende de información que el anuncio no describe, como calidades, reformas o el margen de negociación.
 
 ## Código de referencia
 
@@ -455,11 +466,14 @@ Para la optimización de hiperparámetros se contempla el uso de Optuna y para l
 
 ## Métricas de evaluación
 
-Los modelos se compararán principalmente mediante:
+Todas las métricas se calculan en la escala original del precio (euros), tras revertir la transformación logarítmica con la que se entrenan los modelos:
 
 - Mean Absolute Error (MAE);
 - Root Mean Squared Error (RMSE);
-- coeficiente de determinación (R²).
+- coeficiente de determinación (R²);
+- error porcentual absoluto medio y mediano (MAPE y MdAPE), que pesan igual a todas las viviendas con independencia de su precio.
+
+La predicción en euros se obtiene como la exponencial de la predicción en logaritmo, que estima la mediana del precio condicionada a las variables.
 
 La selección del modelo final no dependerá únicamente del error predictivo. También se tendrá en cuenta la estabilidad del modelo, su capacidad de generalización y la interpretabilidad de los factores asociados al precio.
 
@@ -533,4 +547,3 @@ Proyecto en desarrollo.
 - [x] Entrenamiento, evaluación e interpretación de modelos.
 - [x] Variables adicionales (texto, geografía, renta) y ablación.
 - [x] Redes neuronales: MLP y corrección por texto con un modelo de lenguaje.
-- [ ] Red neuronal multicapa (opcional).
